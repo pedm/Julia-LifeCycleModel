@@ -1,0 +1,181 @@
+
+function simNoUncer(Agrid, Ygrid, policyA1,V,startingA)
+    # Initialise arrays that will hold the paths of income consumption, value
+    # and assets
+
+    # Arguments for output
+    c = zeros(T, 1)            # consumption
+    v = zeros(T, 1)            # value
+    a = zeros(T + 1,1)         # this is the path at the start of each period, so we include the 'start' of death
+    y = zeros(T, 1)              # income
+
+    ## ------------------------------------------------------------------------
+    # Obtain paths using the initial condition and the policy and value
+    # functions
+    #-------------------------------------------------------------------------#
+    a[1, 1] = startingA
+    for t = 1:1:T                     # loop through time periods for a particular individual
+        # Original matlab code
+        # v[t  , 1]   = interp1(Agrid[t, :],V[t, :],a[t, 1],interpMethod, 'extrap')
+        knots_x = (Agrid[t, :],)
+        itp = interpolate(knots_x, V[t, :], Gridded(Linear()))
+        v[t  , 1]   = itp[ a[t, 1] ]
+
+        # a[t+1, 1]   = interp1(Agrid[t, :], policyA1[t, :] ,a[t, 1],interpMethod, 'extrap')
+        knots_x = (Agrid[t, :],)
+        itp_assets  = interpolate(knots_x, policyA1[t, :], Gridded(Linear()))
+        a[t+1, 1]   = itp_assets[ a[t, 1] ]
+        y[t,   1]   = Ygrid[t];
+        c[t  , 1]   = a[t, 1] + y[t, 1] - (a[t+1, 1]/(1+r))
+    end   #t
+    return c, a, v, y
+end
+
+function simWithUncer(Agrid, Ygrid, policyA1, EV, startingA)
+    # (policyA1,EV,startingA)
+
+    # This function takes the policy functions and value functions, along with
+    # starting assets and returns simulated paths of income, consumption,
+    # assets and value
+
+    ## ------------------------------------------------------------------------
+    # Initialise arrays that will hold the paths of income consumption, value
+    # and assets
+
+    # Arguments for output
+    y = zeros(T, numSims);            # income
+    c = zeros(T, numSims);            # consumption
+    v = zeros(T, numSims);            # value
+    a = zeros(T + 1,numSims);         # this is the path at the start of each period, so we include the 'start' of death
+
+    # Other arrays that will be used below
+    e     = zeros(T, numSims);        # the innovations to log income
+    logy1 = zeros(1, numSims);        # draws for initial income
+    ly    = zeros(T, numSims);        # log income
+    ypathIndex = zeros(T, numSims);   # holds the index (location) in the vector
+
+    ## ------------------------------------------------------------------------
+    # Obtain time series of incomes for our simulated individuals
+    #-------------------------------------------------------------------------##
+    # Draw random draws for starting income and for innovations
+    seed1 = 1223424; # For the innovations
+    seed2 = 234636;  # For initial income
+    sig_inc = sigma/ ((1-rho^2)^0.5);
+    e = getNormalDraws( 0, sigma,  T, numSims, seed1);  # normally distributed random draws for the innovation
+    logy1 =  getNormalDraws( mu, sig_inc,  1, numSims, seed2); # a random draw for the initial income
+
+    # Get all the incomes, recursively
+    for s = 1:1: numSims                           # loop through individuals
+        ly[1, s] = truncate_custom(logy1[1, s], -normBnd*sig_inc,normBnd*sig_inc );
+        y[1, s] = exp(ly[1, s]);
+        for t = 1:1:T                              # loop through time periods for a particular individual
+            if (t != T)  # Get next year's income
+                ly[t+1, s] = (1 -rho) * mu + rho * ly[t, s] + e[t + 1, s];
+                ly[t+1, s] = truncate_custom(ly[t+1, s], -normBnd*sig_inc,normBnd*sig_inc );
+                y[t+1, s] = exp( ly[t+1, s] );
+            end # if (t ~= T)
+
+            if (t >= Tretire) # set income to zero if the individual has retired
+                    y[t, s] = 0
+            end # if (t >= Tretire)
+       end # t
+    end # s
+
+## ------------------------------------------------------------------------
+# Obtain consumption, asset and value profiles
+#-------------------------------------------------------------------------##
+     for s = 1:1: numSims
+        a[1, s] = startingA;
+         for t = 1:1:T                              # loop through time periods for a particular individual
+            if (t < Tretire)                       # first for the before retirement periods
+                # clear tA1 tV;                      #necessary as the dimensions of these change as we wor through this file
+                tA1 = policyA1[t, :, :];  # the relevant part of the policy function
+                tV  = EV[t, :, :];         # the relevant part of the value function
+                # a[t+1, s] =  interp2D(Agrid[t,:]', Ygrid[t, :]', tA1, a[t, s], y[t, s]);
+                # v[t  , s] =  interp2D(Agrid[t,:]', Ygrid[t, :]', tV , a[t, s], y[t, s]);
+
+                knots_x = (Agrid[t, :], Ygrid[t, :])
+
+                itp = interpolate(knots_x, tA1, Gridded(Linear()))
+                a[t+1, s] = itp[ a[t, s], y[t, s] ]
+
+                itp_V = interpolate(knots_x, tV, Gridded(Linear()))
+                v[t, s] = itp_V[ a[t, s], y[t, s] ]
+
+            else                          # next for the post retirement periods
+                # clear tA1 tV;
+                tA1 = policyA1[t, :, 1];  # the relevant part of the policy function
+                tV = EV[t, :, 1];         # the relevant part of the value function
+                # a[t+1, s] = interp1(Agrid[t,:]', tA1, a[t, s], 'linear', 'extrap');
+                # v[t,   s] = interp1(Agrid[t,:]', tV , a[t, s], 'linear', 'extrap');
+
+                knots_x = (Agrid[t, :],)
+                itp = interpolate(knots_x, tA1, Gridded(Linear()))
+                a[t+1, s] = itp[ a[t, s] ]
+
+                itp_V = interpolate(knots_x, tV, Gridded(Linear()))
+                v[t, s] = itp_V[ a[t, s] ]
+
+            end # if (t < Tretire)
+
+            # Check whether next period's asset is below the lowest
+            # permissable
+            if ( a[t+1, s] < Agrid[t+1, 1] )
+               a[t+1, s] = checkSimExtrap( Ygrid, Agrid[t+1, 1], y[t, s] );
+            end
+
+            # Get consumption from today's assets, today's income and
+            # tomorrow's optimal assets
+            c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r));
+        end   #t
+    end # s
+
+    return c, a, v, y
+end
+
+function getNormalDraws( mu, sigma,  dim1, dim2, seed)
+    # This function returns a dim1 * dim2 two array of pseudo random draws from
+    # a normal distribution with mean mu and standard deviation sigma. A seed
+    # is also inputted as well as lower and upper truncation points
+
+    ## ------------------------------------------------------------------------
+    #Set the seed
+    srand(seed)
+
+    ## ------------------------------------------------------------------------
+    # Draw standard normal draws, and transformthem so they come from a
+    # distribution with our desired mean and stdev
+    StdRandNormal = randn(dim1, dim2);
+    normalDraws = mu .* ones(dim1, dim2)  + sigma .* StdRandNormal;
+    return normalDraws
+end
+
+function checkSimExtrap( Ygrid, lba1, y )
+
+    # This is a function to check, in selecting next period's asset we haven't
+    # selected a value that is less than the borrowing constraint. This could
+    # occur for one of two reasons. First it could be that we are extrapolating
+    # (i.e. income in the period is larger than the largest income in the grid.
+    # If this is the case we set next period's assets to the lowest permissable
+    # level. Otherwise it is likely that there is an error - and in this case
+    # we cause the programme to stop
+
+    if (y > Ygrid[numPointsY]) || (y < Ygrid[1])
+        a1 = lba1;
+    else
+        error("Next periods asset is below minimum permissable assets. And we are not extrapolating. Likely there is a bug")
+    end
+    return a1
+end
+
+function truncate_custom(y, negtrunc, postrunc)
+    # Truncate input if its too big or too small
+    if (y < negtrunc) # If y is less than the value negtrunc
+       truncy = negtrunc;
+    elseif (y > postrunc)
+       truncy= postrunc; # If y is greater than the value postrunc
+    else
+       truncy = y;
+    end
+    return truncy
+end
