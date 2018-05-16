@@ -1,4 +1,13 @@
-function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTransitionMrx)
+
+
+function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTransitionMrx)
+
+    ## I'm using this type of parallelization:
+    # a = SharedArray{Float64}(10)
+    # @parallel for i = 1:10
+    #     a[i] = i
+    # end
+
     # Define params
     minCons    = params["minCons"]
     r          = params["r"]
@@ -8,18 +17,18 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
     # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS NAN
 
     # Matrices to hold the policy and value functions
-    V        = zeros(T+1, numPointsA, numPointsY)
-    policyA1 = zeros(T,   numPointsA, numPointsY)
-    policyC  = zeros(T,   numPointsA, numPointsY)
+    V        = SharedArray{Float64}(T+1, numPointsA, numPointsY)
+    policyA1 = SharedArray{Float64}(T,   numPointsA, numPointsY)
+    policyC  = SharedArray{Float64}(T,   numPointsA, numPointsY)
 
     # Matrices to hold expected value and marginal utility functions
-    EV  = zeros(T+1, numPointsA, numPointsY);
+    EV  = SharedArray{Float64}(T+1, numPointsA, numPointsY)
     # EdU = zeros(T,   numPointsA, numPointsY);
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :] = 0
-    EV[T + 1, :, :] = 0
+    V[T + 1, :, :] = 0.0
+    EV[T + 1, :, :] = 0.0
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
@@ -28,7 +37,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
     for ixt=T:-1:1                                # Loop from time T-1 to 1
         Agrid1 = Agrid[ixt + 1, :]                # The grid on assets tomorrow
 
-        for ixA = 1:1:numPointsA                  # points on asset grid
+        @sync @parallel for ixA = 1:numPointsA                  # points on asset grid
 
             # STEP 1. solve problem at grid points in assets and income
             # ---------------------------------------------------------
@@ -51,7 +60,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                 #
                 # @time itp[2]
                 # @time itp[2]
-
+                # hgdgfd
                 # Compute solution
                 if (ubA1 - lbA1 < minCons)        # if liquidity constrained
                     negV = objectivefunc(params, itp, lbA1, A, Y)
@@ -60,7 +69,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                     # Find the A1 that minimizes the objective function
 
                     # define obj fcn
-                    function obj(A1::Float64)
+                    function obj(A1)
                         return objectivefunc(params, itp, A1, A, Y)
                     end
                     Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)

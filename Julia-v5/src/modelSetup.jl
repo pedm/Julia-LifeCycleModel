@@ -1,5 +1,5 @@
 
-function getMinAndMaxAss(minInc, maxInc)
+function getMinAndMaxAss(params, minInc, maxInc)
 
     ## ------------------------------------------------------------------------
     # Initialise the output matrices
@@ -14,7 +14,7 @@ function getMinAndMaxAss(minInc, maxInc)
     # Borrowing constraints
     BC[T + 1] = 0
     for ixt = T:-1:1
-        BC[ixt] = BC[ixt+1]/(1+r) - minInc[ixt, 1] + minCons
+        BC[ixt] = BC[ixt+1]/(1 + params["r"]) - minInc[ixt, 1] + params["minCons"]
     end
 
     # if borrowing is not allowed, replace negative points in the borrowing
@@ -24,9 +24,9 @@ function getMinAndMaxAss(minInc, maxInc)
     end
 
     # Maximum Assets
-    maxA[1] = startA
+    maxA[1] = params["startA"]
     for ixt = 2:1:T+1
-        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1+r)
+        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1 + params["r"])
     end
 
     # If starting assets are 0 we will have maxA<0 in period 1 and BC>0.
@@ -53,7 +53,7 @@ function getGrid(minongrid, maxongrid, GridPoints, method)
 end
 
 
-function getIncomeGrid()
+function getIncomeGrid(params)
 
     # A function that returns:
     # 1. an income grid
@@ -65,7 +65,7 @@ function getIncomeGrid()
     # Scenario where there is no uncertainty
     #----------------------------------------#
     if isUncertainty == 0
-        y = exp(mu)                 # income is set equal to the exp of the log mean
+        y = exp( params["mu"] )                 # income is set equal to the exp of the log mean
         minInc = y
         maxInc = y
         Q = [1]                    # The transition matrix Q is simply a constant 1
@@ -83,16 +83,16 @@ function getIncomeGrid()
     # Scenario where there is uncertainty - income draws are log normally distributed
     #----------------------------------------#
 
-    elseif isUncertainty == 1
+elseif isUncertainty == 1
 
            # First get the standard deviation of income (from sigma and rho)
-           sig_inc = sigma/((1-rho^2)^0.5)
+           sig_inc = params["sigma"] / ((1- params["rho"]^2)^0.5)
 
            # Split the entire normal distribution into numPointsY sections that
            # are equiprobable. The output lNormDev gives the (numPointsY + 1)
            # points that bound the sections, the output ly gives the
            # (numPointsY) expected value in each section
-           lNormDev, ly = getNormDev(mu, sig_inc, normBnd, numPointsY );
+           lNormDev, ly = getNormDev(params["mu"], sig_inc, normBnd, numPointsY );
 
            #---------------------#
            #Get transition matrix Q(i, j). The prob of income j in t+1
@@ -101,9 +101,9 @@ function getIncomeGrid()
            Q = zeros(numPointsY, numPointsY)              #initialise the transition matrix
            for i = 1:1:numPointsY
                for j = 1:1:numPointsY
-                   hiDraw = lNormDev[j+1] - (1-rho)*mu - rho * ly[i]; #highest innovation that will give us income j tomorrow
-                   loDraw = lNormDev[j]   - (1-rho)*mu - rho * ly[i]; #lowest  innovation that will give us income j tomorrow
-                   Q[i,j] = stdnormcdf_manual(hiDraw/sigma) - stdnormcdf_manual(loDraw/sigma);
+                   hiDraw = lNormDev[j+1] - (1-params["rho"])*params["mu"] - params["rho"] * ly[i]; #highest innovation that will give us income j tomorrow
+                   loDraw = lNormDev[j]   - (1-params["rho"])*params["mu"] - params["rho"] * ly[i]; #lowest  innovation that will give us income j tomorrow
+                   Q[i,j] = stdnormcdf_manual(hiDraw/params["sigma"]) - stdnormcdf_manual(loDraw/params["sigma"]);
                end #j
 
                #Each of the rows of Q should add up to 1. But
@@ -116,7 +116,7 @@ function getIncomeGrid()
            minInc = exp(-normBnd * sig_inc); #Get the minimum income in each year
            maxInc = exp(normBnd * sig_inc);  #Get the maximum income in each year
 
-           if (y[1] < 1e-4) || (y[numPointsY] > 1e5)
+           if (y[1] < 1e-4) || (y[ numPointsY ] > 1e5)
                warning("Combination of sigma and rho give a very high income variance. Numerical instability possible")
            end
 
@@ -135,6 +135,7 @@ function getIncomeGrid()
     #----------------------------------------#
     #Replace these arrays with zeros for all years after retirement
     #----------------------------------------#
+
     if Tretire == 0         # no work (retired at birth)
        Ygrid[:, :] = 0
        minInc[:, :] = 0
@@ -162,27 +163,26 @@ function getNormDev(mu, sigma_inc, trunc, N )
     ## -------------------------------------------------------------------------
     # Initialise the output and working arrays
 
-   # Output
-   Z = zeros(N + 1, 1)
-   EVbetweeenZ = zeros(N, 1);
+    # Output
+    Z = zeros(N + 1, 1)
+    EVbetweeenZ = zeros(N, 1);
 
+   ## -------------------------------------------------------------------------
+   #Finding the points that divide the standard normal into N segments
+   #The first and last of these should, if we are using an actual normal
+   #distribution would be minus and plus infinity.  In reality we use a truncated
+   #normal distribution and use -trunc and +trunc (where trunc is an argument)
+   Z[1] = -trunc * sigma_inc;
+   Z[N + 1] = trunc * sigma_inc;
 
-## -------------------------------------------------------------------------
-#Finding the points that divide the standard normal into N segments
-#The first and last of these should, if we are using an actual normal
-#distribution would be minus and plus infinity.  In reality we use a truncated
-#normal distribution and use -trunc and +trunc (where trunc is an argument)
-    Z[1] = -trunc * sigma_inc;
-    Z[N + 1] = trunc * sigma_inc;
-
-#Now recursively get the rest of the points
+    #Now recursively get the rest of the points
     for ixi = 2:1:N
         Z[ixi] = sigma_inc * stdnorminv_manual((ixi-1)/N) + mu;
     end
 
     stdZ = (Z - mu .* ones(N + 1, 1)) ./ sigma_inc;
 
-#Finding the expected value within each interval (see Adda & Cooper page
+    #Finding the expected value within each interval (see Adda & Cooper page
 #58)
     PDF = stdnormpdf_manual(stdZ);
 
@@ -206,17 +206,24 @@ function stdnorminv_manual(p)
         # fzero  Single-variable nonlinear zero finding.
         # x = fzero(@(t) stdnormcdf_manual(t) - p, boundforzero, optimset('TolX',1e-12))
         f(x) = stdnormcdf_manual(x) - p
-        x = fzero(f, -3, 3)
+
+        # NOTE: for some reason, f(3) and f(3.0) gave different results back when using simps_custom(). thats why I moved to quadgk()
+        # display(f(-3.0))
+        # display(f(3.0))
+
+        x = fzero(f, -3.0, 3.0)
     end
     return x
 end
 
 function stdnormcdf_manual(x)
     # This function gives the cdf of a standard normal
-    approxforminusinf = - 20;
+    approxforminusinf = -20;
     # quad   Numerically evaluate integral, adaptive Simpson quadrature.
     # cdf = quad(@(t) stdnormpdf_manual(t), approxforminusinf, x, 1e-12);
-    cdf = simps(x -> stdnormpdf_manual(x), approxforminusinf, x, 1000)
+    # cdf = simps_custom(t -> stdnormpdf_manual(t), approxforminusinf, x, 1000)
+
+    cdf, error = quadgk(stdnormpdf_manual, approxforminusinf, x)
     return cdf
 end
 
@@ -229,11 +236,11 @@ end
 # Quadrature integration (replicate quad() from matlab in julia)
 # Copied from http://blog.mmast.net/simpson-integration-julia
 # Note: could also use https://lectures.quantecon.org/jl/julia_libraries.html
-function simps(f::Function, a::Number, b::Number, n::Number)
+function simps_custom(f::Function, a::Number, b::Number, n::Number)
     # f = function over which you want to integrate between a and b
     # n = number of grid points
 
-    n # 2 == 0 || error("`n` must be even")
+    # n # 2 == 0 || error("`n` must be even")
     h = (b-a)/n
     s = f(a) + f(b)
     s += 4sum(f(a + collect(1:2:n) * h))

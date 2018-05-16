@@ -1,13 +1,33 @@
-function utility(cons::Float64)
+# TODO: will there be a speed improvement if I specify that params is Dict{Any,Any} ?
+@everywhere function utility(params::Dict{String,Float64}, cons::Float64)
+    # Note: seems we save a lot of time by specifying type for params
+
     # if gamma == 1
     #     utils = log(cons)
     # else
-        utils = ((cons)^(gamma_mod)  )/(gamma_mod)
+        utils = ((cons)^(params["gamma_mod"])  )/(params["gamma_mod"])
     # end
 end
 
+# @everywhere function utility(params::Dict{String,Any}, cons::Float64)
+#     # if gamma == 1
+#     #     utils = log(cons)
+#     # else
+#         gamma_mod::Float64 = params["gamma_mod"] # seems we save a lot of time by specifying type here
+#         utils = ((cons)^(gamma_mod)  )/(gamma_mod)
+#     # end
+# end
+#
+# @everywhere function utility_alt2(params::Dict{String,Float64}, cons::Float64)
+#     # if gamma == 1
+#     #     utils = log(cons)
+#     # else
+#         gamma_mod::Float64 = params["gamma_mod"] # seems we save a lot of time by specifying type here
+#         utils = ((cons)^(gamma_mod)  )/(gamma_mod)
+#     # end
+# end
 
-function objectivefunc(itp, A1, A0, Y)
+@everywhere function objectivefunc(params::Dict{String,Float64}, itp, A1::Float64, A0::Float64, Y::Float64)
 
     #-------------------------------------------------------------------------------#
     # This function returns the following quantity:
@@ -19,8 +39,8 @@ function objectivefunc(itp, A1, A0, Y)
     # beta = params["beta"]
     # r = params["r"]
 
-    cons = A0 + Y - (A1)/(1+r)
-    value = utility(cons) + beta * itp[A1]
+    cons = A0 + Y - (A1)/(1 + params["r"])
+    value = utility(params, cons) + params["beta"] * itp[A1]
 
     ## ------------------------------------------------------------------------
     #The optimisation routine that we will use searches for the minimum of the

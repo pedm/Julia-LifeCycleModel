@@ -1,5 +1,6 @@
 
-function simNoUncer(Agrid, Ygrid, policyA1,V,startingA)
+# TODO: add params
+function simNoUncer(Agrid, Ygrid, policyA1,V,startA)
     # Initialise arrays that will hold the paths of income consumption, value
     # and assets
 
@@ -13,7 +14,7 @@ function simNoUncer(Agrid, Ygrid, policyA1,V,startingA)
     # Obtain paths using the initial condition and the policy and value
     # functions
     #-------------------------------------------------------------------------#
-    a[1, 1] = startingA
+    a[1, 1] = startA
     for t = 1:1:T                     # loop through time periods for a particular individual
         # Original matlab code
         # v[t  , 1]   = interp1(Agrid[t, :],V[t, :],a[t, 1],interpMethod, 'extrap')
@@ -31,12 +32,21 @@ function simNoUncer(Agrid, Ygrid, policyA1,V,startingA)
     return c, a, v, y
 end
 
-function simWithUncer(Agrid, Ygrid, policyA1, EV, startingA)
-    # (policyA1,EV,startingA)
+function simWithUncer(params, Agrid, Ygrid, policyA1, EV)
+    # (policyA1,EV,startA)
 
     # This function takes the policy functions and value functions, along with
     # starting assets and returns simulated paths of income, consumption,
     # assets and value
+
+    ## ------------------------------------------------------------------------
+    # Define parameters
+
+    rho     = params["rho"]
+    mu      = params["mu"]
+    sigma   = params["sigma"]
+    r       = params["r"]
+    startA  = params["startA"]
 
     ## ------------------------------------------------------------------------
     # Initialise arrays that will hold the paths of income consumption, value
@@ -85,7 +95,7 @@ function simWithUncer(Agrid, Ygrid, policyA1, EV, startingA)
 # Obtain consumption, asset and value profiles
 #-------------------------------------------------------------------------##
      for s = 1:1: numSims
-        a[1, s] = startingA;
+        a[1, s] = startA;
          for t = 1:1:T                              # loop through time periods for a particular individual
             if (t < Tretire)                       # first for the before retirement periods
                 # clear tA1 tV;                      #necessary as the dimensions of these change as we wor through this file
