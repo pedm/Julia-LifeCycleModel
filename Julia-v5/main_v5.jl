@@ -12,7 +12,7 @@
 ## Run parallel or not
 ################################################################################
 
-runparallel = true
+runparallel = false
 
 if runparallel == true
     # Add workers
@@ -65,7 +65,7 @@ include("src/plots.jl")
 params                     = Dict{String, Float64}()
 params["tol"]              = 1e-10               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
-params["r"]                = 0.02                # Interest rate
+params["r"]                = 1.0/0.95 - 1.0      # Interest rate
 params["beta"]             = 0.95                # 1/(1+r) # Discount factor
 params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
 params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
@@ -80,8 +80,8 @@ const T                    = 60                  # Number of time period
 const Tretire              = 45                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 100                  # number of points in the income grid
-const numPointsA           = 100                  # number of points in the discretised asset grid
+const numPointsY           = 10                  # number of points in the income grid
+const numPointsA           = 100                 # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
