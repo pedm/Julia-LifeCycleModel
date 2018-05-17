@@ -1,3 +1,6 @@
+## Simple Life Cycle Model of Consumption and Savings
+## Based off of matlab code by Monica Costa-Dias and Cormac O'Dea
+
 # v1: finite consumption saving endowment problem
 # v3: add deterministic income stream
 # v5: realistic income uncertainty
@@ -5,8 +8,6 @@
 #   March 6th Update - replace constants with a dictionary of params
 #   This will be better down the road when we do estimation
 #   March 21 Update - better plots
-
-# TODO: work on a better parallel version
 
 ################################################################################
 ## Run parallel or not
@@ -105,42 +106,19 @@ end
 ################################################################################
 
 if runparallel == false
-    println("First pass")
-    @time policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
-
-    println("Second pass")
     @time policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
 
 else
-    println("First pass")
-    @time policyA1, policyC, V, EV  = solveValueFunctionPar(params, Agrid, Ygrid, incTransitionMrx)
-
-    println("Second pass")
     @time policyA1, policyC, V, EV  = solveValueFunctionPar(params, Agrid, Ygrid, incTransitionMrx)
 end
 
-## Look at evaluation time
-
-# @elapsed 1
-# # Average time
-# time = zeros(30)
-# for i=1:30
-#     time[i] = @elapsed policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx);
-# end
-# println("Mean Execution Time")
-# println(mean(time))
+## NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
 
 ################################################################################
 ## Simulate
 ################################################################################
 
 cpath, apath, vpath, ypath = simWithUncer(params, Agrid, Ygrid, policyA1, EV)
-
-## Tools to optimize code:
-# @timev solveValueFunction(params, Agrid, Ygrid, incTransitionMrx);
-# @code_warntype solveValueFunction(params, Agrid, Ygrid, incTransitionMrx);
-
-# TODO: why is negV ANY rather than Float64?
 
 ################################################################################
 ## Plot
@@ -171,14 +149,18 @@ plotApath(apath, MinAss)
 plotYCAndApaths( ypath, cpath, apath );
 
 
+################################################################################
+## Profile
+################################################################################
+
 # Next steps
 # TODO: get simNoUncer() working in this version
 # TODO: dont use zeros(), instead use a = Array(Float64, size)
 # TODO: use profiling:
 
-################################################################################
-## Profile
-################################################################################
+## Tools to optimize code:
+# @timev solveValueFunction(params, Agrid, Ygrid, incTransitionMrx);
+# @code_warntype solveValueFunction(params, Agrid, Ygrid, incTransitionMrx);
 
 # Profile.clear()  # in case we have any previous profiling data
 # @profile solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
