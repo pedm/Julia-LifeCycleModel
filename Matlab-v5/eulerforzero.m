@@ -17,7 +17,11 @@ global Agrid1
 
 %% ------------------------------------------------------------------------ 
 % Get marginal utility 
-%Get marginal utility at consumption tomorrow. 
+% Get marginal utility at consumption tomorrow. 
+
+% TODO: could we put this interpolation elsewhere? Seems very inefficient
+% to put it here. Perhaps define interpolation outside and then pass it
+% into this function
 if linearise == 0
     du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, 'extrap');
 elseif linearise == 1
@@ -27,6 +31,7 @@ end
     
 %% ------------------------------------------------------------------------ 
 % Check whether tomorrow's (expected) marginal utility negative If so throw an error
+% TODO: why can this never be negative?
 
 if (du1AtA1 < 0)    
    error('approximated marginal utility in negative')

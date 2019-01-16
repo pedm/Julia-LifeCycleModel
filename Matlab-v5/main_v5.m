@@ -41,8 +41,8 @@ global plotNumber                                   % for graphing
 % select solution, interpolation and integration methods
 
 interpMethod = 'pchip';      % interpolation method - choose from 'linear', 'nearest', 'spline', 'pchip'
-solveUsingValueFunction = 1; % solution method: set to 1 to solve using value function, else =0
-solveUsingEulerEquation = 0; % solution method: set to 1 to solve using Euler equation, else =0
+solveUsingValueFunction = 0; % solution method: set to 1 to solve using value function, else =0
+solveUsingEulerEquation = 1; % solution method: set to 1 to solve using Euler equation, else =0
 linearise = 1;               % whether to linearise the slope of EV when using EE - set linearise=1 to do this, else = 0
 
 

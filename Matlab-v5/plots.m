@@ -12,7 +12,7 @@ global plotNumber                                   % for graphing
     hold on;
     xlabel('Asset');
     ylabel('Policy function (consumption function)');
-    legend('Higest income', 'Lowest income', 4);
+    legend('Higest income', 'Lowest income');
     title('Policy function (consumption function)')
  
 %%
@@ -25,7 +25,7 @@ global plotNumber                                   % for graphing
     hold on;
     xlabel('Asset');
     ylabel('Value');
-    legend('Val. cond. on highest inc.','Val. cond. on lowest inc.', 4);
+    legend('Val. cond. on highest inc.','Val. cond. on lowest inc.');
     title('Value function')
 
  

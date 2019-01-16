@@ -59,6 +59,8 @@ for ixA = 1:1:numPointsA                                         % points on ass
          policyA1(T, ixA, ixY) = 0;                               % optimal next period assets
          V(T, ixA, ixY)  = utility(policyC(T, ixA, ixY));         % value of policyC
          dU(T, ixA, ixY) = getmargutility(policyC(T, ixA, ixY));  % marginal value of policyC
+         
+         % QUESTION: how is dU (or EdU) in last period used later?
 
     end %ixY
 
@@ -88,9 +90,11 @@ for ixt=(T-1):-1:1      %Loop from time T-1 to 1
     % ---------------------------------------------------------------------
 
         for ixY = 1:1:numPointsY
-            %   Value of income and information for optimisation
+            % Value of state variables
             A = Agrid(ixt, ixA);                %assets today
-            Y = Ygrid(ixt, ixY);               %income today
+            Y = Ygrid(ixt, ixY);                %income today
+            
+            % Information for optimisation
             lbA1 = Agrid(ixt + 1, 1);           %lower bound: assets tomorrow
             ubA1 = (A + Y - minCons)*(1+r);     %upper bound: assets tomorrow
             bndForSol = [lbA1, ubA1];           %if the Euler equation has a soluton it will be within these bounds
@@ -99,14 +103,19 @@ for ixt=(T-1):-1:1      %Loop from time T-1 to 1
                   linEdU1 = getinversemargutility(Edu1);
             end
 
-            %   Compute solution 
+            % Compute solution 
             signoflowerbound = sign(eulerforzero(A, lbA1, Y));
+            
+            % TODO: why would a positive signoflowerbound indicate liq
+            % constrained? (I understand the second part of this statement,
+            % but not the first)
             if (signoflowerbound == 1) || (ubA1 - lbA1 < minCons)    %if liquidity constrained 
                  policyA1(ixt, ixA, ixY) = lbA1;
             else                                                %if interior solution                              
                 signofupperbound = sign(eulerforzero(A, ubA1, Y));
                 if (signoflowerbound*signofupperbound == 1)
                     error('Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely')
+                    % TODO why would this indicate a bug?
                 end
                 [policyA1(ixt, ixA, ixY)] = fzero(@(A1) eulerforzero(A, A1, Y), bndForSol,optimset('TolX',tol));
             end                                     %if (signoflowerbound == 1) 

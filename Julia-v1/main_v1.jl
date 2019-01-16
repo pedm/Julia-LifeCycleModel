@@ -32,8 +32,11 @@ end
 cpath, apath, vpath = simNoUncer(T, r, Agrid, policyA1, V, startA);
 
 # Load PyPlot module
-ENV["MPLBACKEND"]="qt4agg"
-using PyPlot
+# ENV["MPLBACKEND"]="qt4agg"
+# using PyPlot
+
+using Plots
+plotly()
 
 # Plots
 plotCpath(cpath)

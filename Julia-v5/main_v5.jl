@@ -4,10 +4,24 @@
 # v1: finite consumption saving endowment problem
 # v3: add deterministic income stream
 # v5: realistic income uncertainty
-# v5_improved: dictionary of params, better plots, get parallel working
-#   March 6th Update - replace constants with a dictionary of params
-#   This will be better down the road when we do estimation
-#   March 21 Update - better plots
+
+################################################################################
+# Euler Equation Update (Jan 2019)
+
+# Next steps:
+# 1) add the option to linearize the slope of EV when using EE (as in Cormac's code)
+    # const linearise true # whether to linearise the slope of EdU when using EE
+# 2) for a given individual, plot the euler equation over time. is it flat?
+# 3) plot marginal utility of consumption by A1 (given some income)
+# 4) is there a faster method to solve the euler equation?
+# 5) modify income process so that you get less income when young. turn on borrowing, check that households consumption smooth by borrowing when young. turn off borrowing, check that euler equation is violated when young due to credit constraints
+
+# Way down the road
+# 1) create a higher interest rate for borrowing than lending, solve with EE method (will require two EEs, as explained in KV2014 appendix)
+# 2) allow for a discrete choice in the model, with some sort of smoothing, and solve with euler equation (following Blundell, Costa-Dias, Meghir, and Shaw)
+
+# note that consumption in retirement is much smoother when solving using euler equation
+# why does consumption go up in retirement when 30 asset points?
 
 ################################################################################
 ## Run parallel or not
@@ -50,7 +64,9 @@ end
 
 include("src/modelSetup.jl")
 include("src/model.jl")
+include("src/modelEulerEquation.jl")
 include("src/solveValueFunction.jl")
+include("src/solveEulerEquation.jl")
 include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
 include("src/plots.jl")
@@ -86,6 +102,8 @@ const numPointsA           = 100                 # number of points in the discr
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
+const useEulerEquation     = true                # Solve the model using the euler equation?
+const saveValue_inEE       = false               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 
 ################################################################################
 ## Setup Model
@@ -105,10 +123,14 @@ end
 ## Solve
 ################################################################################
 
-if runparallel == false
+if useEulerEquation
+    println("Solve Euler Equation")
+    @time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx)
+elseif runparallel == false
+    println("Solve Value Function: Serial")
     @time policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
-
 else
+    println("Solve Value Function: Parallel")
     @time policyA1, policyC, V, EV  = solveValueFunctionPar(params, Agrid, Ygrid, incTransitionMrx)
 end
 

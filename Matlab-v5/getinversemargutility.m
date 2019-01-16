@@ -1,5 +1,7 @@
 function [ invmargut ] = getinversemargutility (margut)
 
+% Whats going on here?
+
 global gamma
 
 if gamma == 1
