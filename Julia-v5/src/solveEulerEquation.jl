@@ -117,18 +117,57 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                         error("Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely")
                     end
 
-                    # define obj fcn
-                    # function obj(A1::Float64)
-                    #     return objectivefunc(params, itp, A1, A, Y)
+                    ############################################################
+                    ## Root finding option 1: use the Roots package.
+                    ############################################################
+                    # Original version: use the Roots package. Problem! Does not allow you to set tol :/
+                    # function ee(A1::Float64)
+                    #     eulerforzero(params, EdU1_at_A1, A, A1, Y)
                     # end
-                    # Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
-                    # policyA1[ixt,ixA,ixY] = Res.minimizer
-                    # negV = Res.minimum     # if interior solution
+                    # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection(), maxevals = 30 )
+
+                    # fzero() optional arguments:
+                    # Note that tol is not respected when using the Bisection method.
+                    # There are methods for bisection where a bracket is specified: `Bisection`, `Roots.A42`, `FalsePosition`
+                    # Optional arguments (tolerances, limit evaluations, tracing)
+                    # `xatol` - absolute tolerance for `x` values. Passed to `isapprox(x_n, x_{n-1})`
+                    # `xrtol` - relative tolerance for `x` values. Passed to `isapprox(x_n, x_{n-1})`
+                    # `atol`  - absolute tolerance for `f(x)` values.
+                    # `rtol`  - relative tolerance for `f(x)` values.
+                    # `maxevals`   - limit on maximum number of iterations
+                    # `maxfnevals` - limit on maximum number of function evaluations
+                    # `strict` - if `false` (the default), when the algorithm stops, possible zeros are checked with a relaxed tolerance
+                    # `verbose` - if `true` a trace of the algorithm will be shown on successful completion.
+                    # as seen here: https://github.com/JuliaMath/Roots.jl/blob/master/src/fzero.jl
+                    # and https://github.com/JuliaMath/Roots.jl/blob/master/src/find_zero.jl
+
+                    ############################################################
+                    ## Root finding option 2: custom bisection function
+                    ############################################################
+                    # New version of bisection -> now i can control tolerance
                     function ee(A1::Float64)
                         eulerforzero(params, EdU1_at_A1, A, A1, Y)
                     end
-                    policyA1[ixt, ixA, ixY] = fzero( ee, lbA1, ubA1 )
+                    policyA1[ixt, ixA, ixY] = bisection64_custom(ee, lbA1, ubA1, 0.001)
 
+                    ############################################################
+                    ## Root finding option 3: custom bisection function, with argument passed directly
+                    ############################################################
+                    # Same as bisection64_custom, but now i pass args directly
+                    # NOTE: seems it doesnt make any difference
+                    # policyA1[ixt, ixA, ixY] = bisection64_with_args(eulerforzero_rearrange, lbA1, ubA1, 0.001, (params, EdU1_at_A1, A, Y))
+
+                    ############################################################
+                    ## Test for speed
+                    ############################################################
+                    if (ixt == 30) && (ixA  % 30 == 0) && ixY == 5
+                        # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection(), maxevals = 30, verbose = true ) # NOTE: bisection does not allow maxevals or anything like that :(
+
+                    #     println("Fzero trace when ixt = 30 and ixA = $ixA")
+                    #     @time policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], FalsePosition(), verbose=true, maxevals = 30 )
+                    #     println("Fzero trace when ixt = 30 and ixA = $ixA A42")
+                    #     @time policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Roots.A42(), verbose=true )
+                    end
                 end # if (ubA1 - lbA1 < minCons)
 
                 # Store solution and its value
@@ -162,4 +201,40 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
     end #ixt
 
     return policyA1, policyC, V, EV, dU, EdU
+end
+
+# I pass in the args to f for speed, as suggested here:
+# https://mmas.github.io/bisection-method-julia
+function bisection64_with_args(f, a::Float64, b::Float64, tol::Float64, args=()::Tuple )
+
+    if a > b
+        b,a = a, b
+    end
+
+    m = _middle(a,b)
+    fa, fb = sign(f(a, args...)), sign(f(b, args...))
+
+    fa * fb > 0 && throw(ArgumentError(bracketing_error))
+    (iszero(fa) || isnan(fa) || isinf(fa)) && return a
+    (iszero(fb) || isnan(fb) || isinf(fb)) && return b
+
+    while a < m < b
+        f_val = f(m, args...)
+        fm = sign(f_val)
+        # println("m = $m and f_val = $f_val")
+
+        if (abs(f_val) < tol) || iszero(fm) || isnan(fm) || isinf(fm)
+            return m
+        elseif fa * fm < 0
+            b,fb=m,fm
+        else
+            a,fa=m,fm
+        end
+        m = _middle(a,b)
+    end
+    return m
+end
+
+function eulerforzero_rearrange(A1::Float64, params::Dict{String,Float64}, EdU1_at_A1, A0::Float64, Y::Float64)
+    eulerforzero(params, EdU1_at_A1, A0, A1, Y)
 end
