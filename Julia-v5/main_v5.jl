@@ -12,9 +12,8 @@
 # 1) add the option to linearize the slope of EdU when using EE (as in Cormac's code)
 # 2) for a given individual, plot the euler equation over time. is it flat?
 # 3) plot marginal utility of consumption by A1 (given some income)
-# 4) is there a faster method to solve the euler equation? look into the tolerance of fzero(). can we do a trace on fzero()?
-# 5) for some arbitrary set of states, can we plot eulerforzero() across A1? then decompose this into the
-# 6) modify income process so that you get less income when young. turn on borrowing, check that households consumption smooth by borrowing when young. turn off borrowing, check that euler equation is violated when young due to credit constraints
+# 4) for some arbitrary set of states, can we plot eulerforzero() across A1? then decompose this into the
+# 5) modify income process so that you get less income when young. turn on borrowing, check that households consumption smooth by borrowing when young. turn off borrowing, check that euler equation is violated when young due to credit constraints
 
 # Way down the road
 # 1) create a higher interest rate for borrowing than lending, solve with EE method (will require two EEs, as explained in KV2014 appendix)
@@ -64,6 +63,7 @@ catch
 end
 
 include("src/modelSetup.jl")
+include("src/utils.jl")
 include("src/model.jl")
 include("src/modelEulerEquation.jl")
 include("src/solveValueFunction.jl")
@@ -127,6 +127,7 @@ end
 
 if useEulerEquation
     println("Solve Euler Equation")
+    @time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx)
     @time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx)
 elseif runparallel == false
     println("Solve Value Function: Serial")
