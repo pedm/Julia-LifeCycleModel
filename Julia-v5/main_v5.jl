@@ -9,7 +9,7 @@
 # Euler Equation Update (Jan 2019)
 
 # Next steps:
-# 1) add the option to linearize the slope of EdU when using EE (as in Cormac's code)
+# 1) add the option to linearize the slope of EdU when using EE (as in Cormac's code) -- HD working on it 
 # 2) for a given individual, plot the euler equation over time. is it flat?
 # 3) plot marginal utility of consumption by A1 (given some income)
 # 4) for some arbitrary set of states, can we plot eulerforzero() across A1? then decompose this into the
@@ -105,7 +105,7 @@ const normBnd              = 3                   # truncate the normal distrib: 
 const numSims              = 10                  # How many individuals to simulate
 const useEulerEquation     = true                # Solve the model using the euler equation?
 const saveValue_inEE       = false               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
-# const linearise            = true                # Whether to linearise the slope of EdU when using EE
+const linearise            = true                # Whether to linearise the slope of EdU when using EE
 
 ################################################################################
 ## Setup Model
