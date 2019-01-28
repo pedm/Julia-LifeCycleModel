@@ -11,13 +11,13 @@ include("src/plots.jl")
 
 const minCons = 1e-5              # min allowed consumption
 const T = 80                      # Number of time period
-const r = 0.01                    # Interest rate
+const r = 0.05                    # Interest rate
 const beta = 1/(1+r)              # Discount factor
 const gamma = 1.5                 # Coefficient of relative risk aversion
 const gamma_mod = 1.0-gamma       # For speed, just do this once
 const startA = 1                  # How much asset do people start life with
-const numPointsA = 20             # number of points in the discretised asset grid
-gridMethod = "equalsteps"         # method to construct grid. One of equalsteps or 5logsteps
+const numPointsA = 100             # number of points in the discretised asset grid
+gridMethod = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 
 # GET ASSET GRID
 # populate grid for assets using 'gridMethod'
@@ -32,11 +32,11 @@ end
 cpath, apath, vpath = simNoUncer(T, r, Agrid, policyA1, V, startA);
 
 # Load PyPlot module
-# ENV["MPLBACKEND"]="qt4agg"
-# using PyPlot
+ENV["MPLBACKEND"]="qt4agg"
+using PyPlot
 
-using Plots
-plotly()
+# using Plots
+# plotly()
 
 # Plots
 plotCpath(cpath)
