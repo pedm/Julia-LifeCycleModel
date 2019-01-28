@@ -42,26 +42,6 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                     V[ixt, ixA, ixY]       = utility(params, policyC[T, ixA, ixY])
                 end
             end #ixY
-            
-function  getmargutility(cons)
-   if cons<=0
-                     error("Consumption is <=0")
-      
-   elseif gamma==1          
-                    margut=1./cons
-                    
-   else
-                    margut = (cons).^(-gamma)      
-   end
-end               
-            
-function getinversemargutility(margut)
-   if gamma == 1
-                 invmargut = 1/margut;
-   elseif
-                 invmargut = margut^(-1/gamma);
-   end
-end    
 
             # STEP 2. integrate out income today conditional on income
             # yesterday to get EV and EdU
@@ -107,15 +87,15 @@ end
                 EdU1 = EdU[ixt + 1, :, ixY]        # relevant section of Edu matrix (in assets tomorrow)
 
                 # Define interpolation function itp
-                 if linearise == 0
-                 du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, 'extrap');
+                if linearise == 0
+                    # du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, "extrap");
                     knots_x = (Agrid1,)
                     EdU1_at_A1 = interpolate(knots_x, EdU1, Gridded(Linear()))
-                 elseif linearise == 1
-                     linEdU1 = getinversemargutility(Edu1);
-                     invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, 'extrap');
-                     du1AtA1 = getmargutility(invDu1atA1);
-                 end
+                elseif linearise == 1
+                    linEdU1 = getinversemargutility(Edu1);
+                    invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, "extrap");
+                    du1AtA1 = getmargutility(invDu1atA1);
+                end
 
                 signoflowerbound = sign(eulerforzero(params, EdU1_at_A1, A, lbA1, Y))
 

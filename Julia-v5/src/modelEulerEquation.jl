@@ -2,6 +2,28 @@ function getmargutility(params::Dict{String,Float64}, cons::Float64)
     margutils = cons^(-params["gamma"])
 end
 
+# NOTE: will need to pass in the parameters to this function
+# (in matlab, cormac was using globals to pass around the parameter gamma. but globals are very slow, so the code is faster when we pass in the parameters)
+function  getmargutility(cons)
+   if cons<=0
+                     error("Consumption is <=0")
+
+   elseif gamma==1
+                    margut=1./cons
+
+   else
+                    margut = (cons).^(-gamma)
+   end
+end
+
+function getinversemargutility(margut)
+    if gamma == 1
+        invmargut = 1/margut;
+    else
+        invmargut = margut^(-1/gamma);
+    end
+end
+
 function eulerforzero(params::Dict{String,Float64}, EdU1_at_A1, A0::Float64, A1::Float64, Y::Float64)
     #-------------------------------------------------------------------------------#
     #This function returns the following quantity:
