@@ -92,6 +92,9 @@ params["startA"]           = 0.0                 # How much asset do people star
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
+params["sigma"]            = 0.00000001                # variance of innovations to log income
+
+params["sigma_trans"]      = 0.1
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option

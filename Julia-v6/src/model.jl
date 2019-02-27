@@ -2,6 +2,10 @@
 @everywhere function utility(params::Dict{String,Float64}, cons::Float64)
     # Note: seems we save a lot of time by specifying type for params
 
+    if cons < 0.0
+        error("cannot have negative consumption")
+    end
+
     # if gamma == 1
     #     utils = log(cons)
     # else
