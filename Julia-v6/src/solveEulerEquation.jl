@@ -80,86 +80,36 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
             # STEP 1. solve problem at grid points in assets and income
             # ---------------------------------------------------------
             for ixY = 1:1:numPointsY               # points on income grid
+
+                # Define interpolation function for EdU1 (will not depend on ixYtrans)
+                EdU1 = EdU[ixt + 1, :, ixY]        # relevant section of Edu matrix (in assets tomorrow)
+                # du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, "extrap");
+                knots_x = (Agrid1,)
+                EdU1_at_A1 = interpolate(knots_x, EdU1, Gridded(Linear()))
+
+                # if linearise == 1
+                #     linEdU1 = getinversemargutility(EdU1)
+                #     invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, "extrap")
+                #     du1AtA1 = getmargutility(invDu1atA1)
+                # end
+
                 for ixYtrans = 1:numPointsYTrans
 
-                    Ytrans = Ytrans_grid[ixYtrans]
-
                     # Value of income and information for optimisation
-                    A    = Agrid[ixt, ixA]            # assets today
-                    Y    = Ygrid[ixt, ixY] * Ytrans  # income today
+                    A      = Agrid[ixt, ixA]          # assets today
+                    Ytrans = Ytrans_grid[ixYtrans]    # transitory income today
+                    Y      = Ygrid[ixt, ixY] * Ytrans # income today
+                    lbA1   = Agrid[ixt + 1, 1]        # lower bound: assets tomorrow
 
                     # Government imposed income floor
                     if Y < minCons
                         Y = minCons
                     end
 
-                    lbA1 = Agrid[ixt + 1, 1]          # lower bound: assets tomorrow
-                    ubA1 = (A + Y - minCons)*(1+r)    # upper bound: assets tomorrow
-                    # EV1  = EV[ixt + 1,:, ixY]       # relevant section of EV matrix (in assets tomorrow)
-                    EdU1 = EdU[ixt + 1, :, ixY]        # relevant section of Edu matrix (in assets tomorrow)
-
-                    # Define interpolation function itp
-                    if linearise == 0
-                        # du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, "extrap");
-                        knots_x = (Agrid1,)
-                        EdU1_at_A1 = interpolate(knots_x, EdU1, Gridded(Linear()))
-                    elseif linearise == 1
-                        error("still need to add transitory income shocks here")
-                        linEdU1 = getinversemargutility(Edu1);
-                        invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, "extrap");
-                        du1AtA1 = getmargutility(invDu1atA1);
-                    end
-
-                    signoflowerbound = sign(eulerforzero(params, EdU1_at_A1, A, lbA1, Y))
-
-                    # Require lower bound to be <= 0
-                    if (signoflowerbound == 1.0) || (ubA1 - lbA1 < minCons)        # if liquidity constrained
-                        # TODO: why would a positive signoflowerbound indicate liq
-                        # constrained? (I understand the second part of this statement,
-                        # but not the first)
-
-                        # negV = objectivefunc(params, itp, lbA1, A, Y)
-                        policyA1[ixt, ixA, ixY, ixYtrans] = lbA1
-
-                    else # if interior solution
-
-                        # Require the upper bound and lower bound to be different signs
-                        signofupperbound = sign( eulerforzero(params, EdU1_at_A1, A, ubA1, Y) )
-                        if (signoflowerbound*signofupperbound == 1.0)
-                            # TODO why would this indicate a bug?
-                            error("Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely")
-                        end
-
-                        ############################################################
-                        ## Root finding option 1: use the Roots package.
-                        ############################################################
-                        # Problem with the Roots package: Bisection does not allow you to set the tolerance
-                        # function ee(A1::Float64)
-                        #     eulerforzero(params, EdU1_at_A1, A, A1, Y)
-                        # end
-                        # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection())
-
-                        ############################################################
-                        ## Root finding option 2: custom bisection function
-                        ############################################################
-                        # New version of bisection -> now i can control tolerance
-                        function ee(A1::Float64)
-                            eulerforzero(params, EdU1_at_A1, A, A1, Y)
-                        end
-                        policyA1[ixt, ixA, ixY, ixYtrans] = bisection64_custom(ee, lbA1, ubA1, 0.001)
-
-                        ############################################################
-                        ## Root finding option 3: custom bisection function, with argument passed directly
-                        ############################################################
-                        # Same as bisection64_custom, but now i pass args directly
-                        # NOTE: seems it doesnt make any difference
-                        # policyA1[ixt, ixA, ixY] = bisection64_with_args(eulerforzero_rearrange, lbA1, ubA1, 0.001, (params, EdU1_at_A1, A, Y))
-
-                    end # if (ubA1 - lbA1 < minCons)
-
-                    # Store solution and its value
-                    policyC[ixt, ixA, ixY, ixYtrans] = A + Y - policyA1[ixt, ixA, ixY, ixYtrans]/(1+r)
-                    dU[ixt, ixA, ixY, ixYtrans]      = getmargutility( params, policyC[ixt, ixA, ixY, ixYtrans] )
+                    # Solve for A1 using the euler equation
+                    policyA1[ixt, ixA, ixY, ixYtrans] = solve_for_A1_using_euler_equation(params, lbA1, A, Y, EdU1_at_A1)
+                    policyC[ixt, ixA, ixY, ixYtrans]  = A + Y - policyA1[ixt, ixA, ixY, ixYtrans]/(1+r)
+                    dU[ixt, ixA, ixY, ixYtrans]       = getmargutility( params, policyC[ixt, ixA, ixY, ixYtrans] )
 
                     if saveValue_inEE
                         # Save value function as well (not strictly necessary if i do simulation using policy functions)
@@ -227,4 +177,66 @@ end
 
 function eulerforzero_rearrange(A1::Float64, params::Dict{String,Float64}, EdU1_at_A1, A0::Float64, Y::Float64)
     eulerforzero(params, EdU1_at_A1, A0, A1, Y)
+end
+
+function solve_for_A1_using_euler_equation(params::Dict{String,Float64}, lbA1::Float64, A::Float64, Y::Float64, EdU1_at_A1)
+
+    # Define params
+    minCons    = params["minCons"]
+    r          = params["r"]
+
+    ubA1 = (A + Y - minCons)*(1+r)    # upper bound: assets tomorrow
+    signoflowerbound = sign(eulerforzero(params, EdU1_at_A1, A, lbA1, Y))
+
+    # Require lower bound to be <= 0
+    if (signoflowerbound == 1.0) || (ubA1 - lbA1 < minCons)        # if liquidity constrained
+        # TODO: why would a positive signoflowerbound indicate liq
+        # constrained? (I understand the second part of this statement,
+        # but not the first)
+
+        # negV = objectivefunc(params, itp, lbA1, A, Y)
+        policyA1 = lbA1
+
+    else # if interior solution
+
+        # Require the upper bound and lower bound to be different signs
+        signofupperbound = sign( eulerforzero(params, EdU1_at_A1, A, ubA1, Y) )
+        if (signoflowerbound*signofupperbound == 1.0)
+            # TODO why would this indicate a bug?
+            println("lbA1 = $lbA1")
+            println("ubA1 = $ubA1")
+            println("A = $A")
+            println("Y = $Y")
+            println("signoflowerbound = $signoflowerbound")
+            println("signofupperbound = $signofupperbound")
+            error("Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely")
+        end
+
+        ############################################################
+        ## Root finding option 1: use the Roots package.
+        ############################################################
+        # Problem with the Roots package: Bisection does not allow you to set the tolerance
+        # function ee(A1::Float64)
+        #     eulerforzero(params, EdU1_at_A1, A, A1, Y)
+        # end
+        # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection())
+
+        ############################################################
+        ## Root finding option 2: custom bisection function
+        ############################################################
+        # New version of bisection -> now i can control tolerance
+        function ee(A1::Float64)
+            eulerforzero(params, EdU1_at_A1, A, A1, Y)
+        end
+        policyA1 = bisection64_custom(ee, lbA1, ubA1, 0.001)
+
+        ############################################################
+        ## Root finding option 3: custom bisection function, with argument passed directly
+        ############################################################
+        # Same as bisection64_custom, but now i pass args directly
+        # NOTE: seems it doesnt make any difference
+        # policyA1[ixt, ixA, ixY] = bisection64_with_args(eulerforzero_rearrange, lbA1, ubA1, 0.001, (params, EdU1_at_A1, A, Y))
+
+    end # if (ubA1 - lbA1 < minCons)
+    return policyA1
 end

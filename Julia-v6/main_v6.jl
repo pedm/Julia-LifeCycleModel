@@ -50,15 +50,18 @@ try
 	@everywhere using Optim
 	using Roots
     using QuadGK
+    using FastGaussQuadrature
 catch
 	println("Installing packages")
 	Pkg.add("Interpolations")
 	Pkg.add("Optim")
 	Pkg.add("Roots")
     Pkg.add("QuadGK")
+    Pkg.add("FastGaussQuadrature")
 
 	@everywhere using Interpolations
 	@everywhere using Optim
+    using FastGaussQuadrature
 	using Roots
     using QuadGK
     using FastGaussQuadrature
@@ -100,7 +103,7 @@ params["sigma_trans"]      = 0.000000001           # variance of transitory inno
 
 
 params["sigma"]            = 0.000000001                # variance of innovations to log income
-params["sigma_trans"]      = 0.1           # variance of transitory innovations to log income
+params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
 
 
 # Constants
@@ -110,14 +113,13 @@ const Tretire              = 45                  # Age at which retirement happe
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 10                  # number of points in the income grid
-const numPointsA           = 100                 # number of points in the discretised asset grid
-const numPointsYTrans      = 5                   # number of points in the transitory income grid
+const numPointsA           = 50                 # number of points in the discretised asset grid
+const numPointsYTrans      = 15                   # number of points in the transitory income grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
-const useEulerEquation     = false                # Solve the model using the euler equation?
+const useEulerEquation     = true                # Solve the model using the euler equation?
 const saveValue_inEE       = true                # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
-const linearise            = false                # Whether to linearise the slope of EdU when using EE
 
 ################################################################################
 ## Setup Model
@@ -126,12 +128,18 @@ const linearise            = false                # Whether to linearise the slo
 # Get income grid
 Ygrid, incTransitionMrx, minInc, maxInc = getIncomeGrid(params)
 
+μtransshocks = -0.5 * params["sigma_trans"] # this comes from Zeldes 1989 and Kovacs 2015. The expected value of a log normal variable with mean μ and variance σ2 is given by exp(μ + σ2/2)
+Ytrans_grid, Ytrans_weights = gausshermite_normal_distribution(numPointsYTrans, μtransshocks, params["sigma_trans"] )
+Ytrans_grid = exp.(Ytrans_grid)
+maxInc = maxInc .* Ytrans_grid[end]
+
 # Get asset grid
 MinAss, MaxAss = getMinAndMaxAss(params, minInc, maxInc)
 Agrid = zeros(T+1, numPointsA)
 for ixt = 1:1:T+1
     Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
 end
+# QUESTION: why does the smallest value in Agrid not correspond to smallest value in MinAss?
 
 ################################################################################
 ## Solve
@@ -174,6 +182,11 @@ plotly() # this works better for development -- shows the plot in firefox. but i
 # gr() # this works better on the server -- does not display the plot, but allows you to save it
 # or try with plotlyjs()
 
+plot_policyA1(10)
+plot_policyA1(55, 1)
+plot_V(5)
+plot_EV_over_time()
+
 plotCpath(cpath)
 # savefig("TEST_cpath.pdf")
 
@@ -185,12 +198,7 @@ plotApath(apath, MinAss)
 
 plotYCAndApaths( ypath, cpath, apath );
 
-plot_EV_over_time()
-
-plot_V(5)
-
-plot_policyA1(10)
-plot_policyA1(55, 1)
+# BUG! When both sigmas set to 0.000000001, why does consumption go up in retirement???
 
 ################################################################################
 ## Profile
