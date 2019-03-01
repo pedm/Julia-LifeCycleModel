@@ -8,19 +8,25 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
     # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS NAN
 
     # Matrices to hold the policy and value functions
-    V        = zeros(T+1, numPointsA, numPointsY)
-    policyA1 = zeros(T,   numPointsA, numPointsY)
-    policyC  = zeros(T,   numPointsA, numPointsY)
+    V        = zeros(T+1, numPointsA, numPointsY, numPointsYTrans)
+    policyA1 = zeros(T,   numPointsA, numPointsY, numPointsYTrans)
+    policyC  = zeros(T,   numPointsA, numPointsY, numPointsYTrans)
 
     # Matrices to hold expected value and marginal utility functions
-    EV  = zeros(T+1, numPointsA, numPointsY);
-    dU  = zeros(T,   numPointsA, numPointsY);
-    EdU = zeros(T,   numPointsA, numPointsY);
+    EV  = zeros(T+1, numPointsA, numPointsY)
+    EdU = zeros(T,   numPointsA, numPointsY)
+    dU  = zeros(T,   numPointsA, numPointsY, numPointsYTrans)
+
+    ## ------------------------------------------------------------------------
+    # Setup nodes and weights for transitory income shocks
+    μtransshocks = -0.5 * params["sigma_trans"] # this comes from Zeldes 1989 and Kovacs 2015. The expected value of a log normal variable with mean μ and variance σ2 is given by exp(μ + σ2/2)
+    Ytrans_grid, Ytrans_weights = gausshermite_normal_distribution(numPointsYTrans, μtransshocks, params["sigma_trans"] )
+    Ytrans_grid = exp.(Ytrans_grid)
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :] = 0
-    EV[T + 1, :, :] = 0
+    V[T + 1, :, :, :] = 0.0
+    EV[T + 1, :, :] = 0.0
 
     ## ------------------------------------------------------------------------
     # SOLVE THE HH PROBLEM FOR TIME T ONLY
@@ -28,6 +34,7 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
         Agrid1 = Agrid[ixt + 1, :]                # The grid on assets tomorrow
         for ixA = 1:1:numPointsA                  # points on asset grid
             for ixY = 1:1:numPointsY              # points on income grid
+                # In retirement, Ytrans = 0.0 always, so it does not enter in here
 
                 # Value of income and information for optimisation
                 A    = Agrid[ixt, ixA]            # assets today
@@ -35,29 +42,25 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
                 # Store (imposed) solution and its value
                 # policyC[ixt, ixA, ixY] =  A + Y # impose A1 = 0
-                policyC[ixt, ixA, ixY] = max( A + Y, params["minCons"] ) # impose A1 = 0. ensure that there is never zero consumption, as that would result in Inf utility
-                dU[ixt, ixA, ixY]      = getmargutility( params, policyC[ixt, ixA, ixY] )
+                policyC[ixt, ixA, ixY, :] = max( A + Y, params["minCons"] ) # impose A1 = 0. ensure that there is never zero consumption, as that would result in Inf utility
+                dU[ixt, ixA, ixY, :]      = getmargutility( params, policyC[ixt, ixA, ixY] )
 
                 if saveValue_inEE
-                    V[ixt, ixA, ixY]       = utility(params, policyC[T, ixA, ixY])
+                    V[ixt, ixA, ixY, :]       = utility(params, policyC[T, ixA, ixY])
                 end
             end #ixY
 
             # STEP 2. integrate out income today conditional on income
             # yesterday to get EV and EdU
             # --------------------------------------------------------
-            realisedV  = V[ixt, ixA, :]
-            realiseddU = dU[ixt, ixA, :]
+            realisedV  = V[ixt, ixA, :, 1] # will be the same for any ixYtrans, so can just take the first value
+            realiseddU = dU[ixt, ixA, :, 1]
             if ixt >= Tretire
                 # when retired, cannot transition between income states (not that it matters when everyone gets zero each period)
                 EV[ixt, ixA, :]  = realisedV
                 EdU[ixt, ixA, :]  = realiseddU
             else
-                # when working, can transition between income states
-                for ixY = 1:1:numPointsY
-                    EV[ixt, ixA, ixY]  = dot( incTransitionMrx[ixY,:], realisedV)
-                    EdU[ixt, ixA, ixY] = dot( incTransitionMrx[ixY,:], realiseddU)
-                end #ixY
+                error("not possible")
             end
 
         end #ixA
@@ -77,91 +80,104 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
             # STEP 1. solve problem at grid points in assets and income
             # ---------------------------------------------------------
             for ixY = 1:1:numPointsY               # points on income grid
+                for ixYtrans = 1:numPointsYTrans
 
-                # Value of income and information for optimisation
-                A    = Agrid[ixt, ixA]            # assets today
-                Y    = Ygrid[ixt, ixY]            # income today
-                lbA1 = Agrid[ixt + 1, 1]          # lower bound: assets tomorrow
-                ubA1 = (A + Y - minCons)*(1+r)    # upper bound: assets tomorrow
-                # EV1  = EV[ixt + 1,:, ixY]       # relevant section of EV matrix (in assets tomorrow)
-                EdU1 = EdU[ixt + 1, :, ixY]        # relevant section of Edu matrix (in assets tomorrow)
+                    Ytrans = Ytrans_grid[ixYtrans]
 
-                # Define interpolation function itp
-                if linearise == 0
-                    # du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, "extrap");
-                    knots_x = (Agrid1,)
-                    EdU1_at_A1 = interpolate(knots_x, EdU1, Gridded(Linear()))
-                elseif linearise == 1
-                    linEdU1 = getinversemargutility(Edu1);
-                    invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, "extrap");
-                    du1AtA1 = getmargutility(invDu1atA1);
-                end
+                    # Value of income and information for optimisation
+                    A    = Agrid[ixt, ixA]            # assets today
+                    Y    = Ygrid[ixt, ixY] * Ytrans  # income today
 
-                signoflowerbound = sign(eulerforzero(params, EdU1_at_A1, A, lbA1, Y))
-
-                # Require lower bound to be <= 0
-                if (signoflowerbound == 1.0) || (ubA1 - lbA1 < minCons)        # if liquidity constrained
-                    # TODO: why would a positive signoflowerbound indicate liq
-                    # constrained? (I understand the second part of this statement,
-                    # but not the first)
-
-                    # negV = objectivefunc(params, itp, lbA1, A, Y)
-                    policyA1[ixt,ixA,ixY] = lbA1
-
-                else # if interior solution
-
-                    # Require the upper bound and lower bound to be different signs
-                    signofupperbound = sign( eulerforzero(params, EdU1_at_A1, A, ubA1, Y) )
-                    if (signoflowerbound*signofupperbound == 1.0)
-                        # TODO why would this indicate a bug?
-                        error("Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely")
+                    # Government imposed income floor
+                    if Y < minCons
+                        Y = minCons
                     end
 
-                    ############################################################
-                    ## Root finding option 1: use the Roots package.
-                    ############################################################
-                    # Problem with the Roots package: Bisection does not allow you to set the tolerance
-                    # function ee(A1::Float64)
-                    #     eulerforzero(params, EdU1_at_A1, A, A1, Y)
-                    # end
-                    # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection())
+                    lbA1 = Agrid[ixt + 1, 1]          # lower bound: assets tomorrow
+                    ubA1 = (A + Y - minCons)*(1+r)    # upper bound: assets tomorrow
+                    # EV1  = EV[ixt + 1,:, ixY]       # relevant section of EV matrix (in assets tomorrow)
+                    EdU1 = EdU[ixt + 1, :, ixY]        # relevant section of Edu matrix (in assets tomorrow)
 
-                    ############################################################
-                    ## Root finding option 2: custom bisection function
-                    ############################################################
-                    # New version of bisection -> now i can control tolerance
-                    function ee(A1::Float64)
-                        eulerforzero(params, EdU1_at_A1, A, A1, Y)
+                    # Define interpolation function itp
+                    if linearise == 0
+                        # du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, "extrap");
+                        knots_x = (Agrid1,)
+                        EdU1_at_A1 = interpolate(knots_x, EdU1, Gridded(Linear()))
+                    elseif linearise == 1
+                        error("still need to add transitory income shocks here")
+                        linEdU1 = getinversemargutility(Edu1);
+                        invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, "extrap");
+                        du1AtA1 = getmargutility(invDu1atA1);
                     end
-                    policyA1[ixt, ixA, ixY] = bisection64_custom(ee, lbA1, ubA1, 0.001)
 
-                    ############################################################
-                    ## Root finding option 3: custom bisection function, with argument passed directly
-                    ############################################################
-                    # Same as bisection64_custom, but now i pass args directly
-                    # NOTE: seems it doesnt make any difference
-                    # policyA1[ixt, ixA, ixY] = bisection64_with_args(eulerforzero_rearrange, lbA1, ubA1, 0.001, (params, EdU1_at_A1, A, Y))
+                    signoflowerbound = sign(eulerforzero(params, EdU1_at_A1, A, lbA1, Y))
 
-                end # if (ubA1 - lbA1 < minCons)
+                    # Require lower bound to be <= 0
+                    if (signoflowerbound == 1.0) || (ubA1 - lbA1 < minCons)        # if liquidity constrained
+                        # TODO: why would a positive signoflowerbound indicate liq
+                        # constrained? (I understand the second part of this statement,
+                        # but not the first)
 
-                # Store solution and its value
-                policyC[ixt, ixA, ixY] = A + Y - policyA1[ixt, ixA, ixY]/(1+r)
-                dU[ixt, ixA, ixY]      = getmargutility( params, policyC[ixt, ixA, ixY] )
+                        # negV = objectivefunc(params, itp, lbA1, A, Y)
+                        policyA1[ixt, ixA, ixY, ixYtrans] = lbA1
 
-                if saveValue_inEE
-                    # Save value function as well (not strictly necessary if i do simulation using policy functions)
-                    EV1              = EV[ixt + 1,:, ixY] # relevant section of EV matrix (in assets tomorrow)
-                    knots_x          = (Agrid1,)
-                    itp              = interpolate(knots_x, EV1, Gridded(Linear()))
-                    V[ixt, ixA, ixY] = utility(params, policyC[ixt, ixA, ixY]) + params["beta"] * itp[ policyA1[ixt,ixA,ixY] ]
-                end
+                    else # if interior solution
+
+                        # Require the upper bound and lower bound to be different signs
+                        signofupperbound = sign( eulerforzero(params, EdU1_at_A1, A, ubA1, Y) )
+                        if (signoflowerbound*signofupperbound == 1.0)
+                            # TODO why would this indicate a bug?
+                            error("Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely")
+                        end
+
+                        ############################################################
+                        ## Root finding option 1: use the Roots package.
+                        ############################################################
+                        # Problem with the Roots package: Bisection does not allow you to set the tolerance
+                        # function ee(A1::Float64)
+                        #     eulerforzero(params, EdU1_at_A1, A, A1, Y)
+                        # end
+                        # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection())
+
+                        ############################################################
+                        ## Root finding option 2: custom bisection function
+                        ############################################################
+                        # New version of bisection -> now i can control tolerance
+                        function ee(A1::Float64)
+                            eulerforzero(params, EdU1_at_A1, A, A1, Y)
+                        end
+                        policyA1[ixt, ixA, ixY, ixYtrans] = bisection64_custom(ee, lbA1, ubA1, 0.001)
+
+                        ############################################################
+                        ## Root finding option 3: custom bisection function, with argument passed directly
+                        ############################################################
+                        # Same as bisection64_custom, but now i pass args directly
+                        # NOTE: seems it doesnt make any difference
+                        # policyA1[ixt, ixA, ixY] = bisection64_with_args(eulerforzero_rearrange, lbA1, ubA1, 0.001, (params, EdU1_at_A1, A, Y))
+
+                    end # if (ubA1 - lbA1 < minCons)
+
+                    # Store solution and its value
+                    policyC[ixt, ixA, ixY, ixYtrans] = A + Y - policyA1[ixt, ixA, ixY, ixYtrans]/(1+r)
+                    dU[ixt, ixA, ixY, ixYtrans]      = getmargutility( params, policyC[ixt, ixA, ixY, ixYtrans] )
+
+                    if saveValue_inEE
+                        # Save value function as well (not strictly necessary if i do simulation using policy functions)
+                        EV1              = EV[ixt + 1,:, ixY] # relevant section of EV matrix (in assets tomorrow)
+                        knots_x          = (Agrid1,)
+                        itp              = interpolate(knots_x, EV1, Gridded(Linear()))
+                        V[ixt, ixA, ixY, ixYtrans] = utility(params, policyC[ixt, ixA, ixY, ixYtrans]) + params["beta"] * itp[ policyA1[ixt, ixA, ixY, ixYtrans] ]
+                    end
+                end #ixYtrans
             end #ixY
 
             # STEP 2. integrate out income today conditional on income
             # yesterday to get EV and EdU
             # --------------------------------------------------------
-            realisedV  = V[ixt, ixA, :]
-            realiseddU = dU[ixt, ixA, :]
+            # Integrate over transitory income shocks
+            realisedV = V[ixt, ixA, :, :] * Ytrans_weights
+            realiseddU = dU[ixt, ixA, :, :] * Ytrans_weights
+            # Integrate over persistent income shocks conditional on previous ixY
             for ixY = 1:1:numPointsY
                 EV[ixt, ixA, ixY]  = dot( incTransitionMrx[ixY,:], realisedV)
                 EdU[ixt, ixA, ixY] = dot( incTransitionMrx[ixY,:], realiseddU)

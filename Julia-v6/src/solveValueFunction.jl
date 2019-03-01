@@ -11,7 +11,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
     policyC  = zeros(T,   numPointsA, numPointsY, numPointsYTrans)
 
     # Setup nodes and weights for transitory income shocks
-    μtransshocks = -0.5 * params["sigma_trans"]
+    μtransshocks = -0.5 * params["sigma_trans"] # this comes from Zeldes 1989 and Kovacs 2015. The expected value of a log normal variable with mean μ and variance σ2 is given by exp(μ + σ2/2)
     Ytrans_grid, Ytrans_weights = gausshermite_normal_distribution(numPointsYTrans, μtransshocks, params["sigma_trans"] )
     Ytrans_grid = exp.(Ytrans_grid)
 
@@ -51,11 +51,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                     # NOTE: problem, this integration method will not work because we want to obtain policy functions too
                     # TODO: will need to produce policy functions!!!!
 
-                    if ixt < Tretire
-                        Ytrans = Ytrans_grid[ixYtrans]
-                    else
-                        Ytrans = 0.0
-                    end
+                    Ytrans = Ytrans_grid[ixYtrans]
 
                     negV, policyA1[ixt,ixA,ixY, ixYtrans], policyC[ixt, ixA, ixY, ixYtrans] = Value(params, Agrid, Ygrid, EV1, ixt, ixA, ixY, Ytrans)
                     V[ixt, ixA, ixY, ixYtrans]                                              = -negV
@@ -65,8 +61,9 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
             # STEP 2. integrate out income today conditional on income
             # yesterday to get EV and EdU
             # --------------------------------------------------------
-            # Integrate out over transitory income shocks
+            # Integrate over transitory income shocks
             realisedV = V[ixt, ixA, :, :] * Ytrans_weights
+            # Integrate over persistent income shocks conditional on previous ixY
             for ixY = 1:1:numPointsY
                 EV[ixt, ixA, ixY]  = dot( incTransitionMrx[ixY,:], realisedV)
             end #ixY

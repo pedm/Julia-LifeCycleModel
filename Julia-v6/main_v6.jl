@@ -99,8 +99,8 @@ params["sigma"]            = 0.3                # variance of innovations to log
 params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
 
 
-params["sigma"]            = 0.1                # variance of innovations to log income
-params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
+params["sigma"]            = 0.000000001                # variance of innovations to log income
+params["sigma_trans"]      = 0.1           # variance of transitory innovations to log income
 
 
 # Constants
@@ -116,7 +116,7 @@ const gridMethod           = "5logsteps"         # method to construct grid. One
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
 const useEulerEquation     = false                # Solve the model using the euler equation?
-const saveValue_inEE       = false               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
+const saveValue_inEE       = true                # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 const linearise            = false                # Whether to linearise the slope of EdU when using EE
 
 ################################################################################
@@ -185,46 +185,12 @@ plotApath(apath, MinAss)
 
 plotYCAndApaths( ypath, cpath, apath );
 
-# T+1, numPointsA, numPointsY);
-# policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid,
-function plot_EV_over_time()
-    t= 5
-    plot(Agrid[t, :], EV[t, :, numPointsY], label = "t = $t", marker = :circle, size = (1200, 800), title = "EV")
-    for t = 15:10:55
-        plot!(Agrid[t, :], EV[t, :, numPointsY], label = "t = $t", marker = :circle)
-    end
-    gui()
-end
-
 plot_EV_over_time()
 
-function plot_V(t = 5, ixY = numPointsY)
-    EVt = EV[t, :, ixY]
-    plot(Agrid[t, :], EVt, label = "EV", marker = :circle, size = (1200, 800), title = "EV and V at time t = $t and ixY = $ixY", hover = EVt)
-    for ixtYtr = 1:numPointsYTrans
-        Vt = V[t, :, ixY, ixtYtr]
-        plot!(Agrid[t, :], Vt, label = "ixtYtr = $ixtYtr", marker = :circle, hover = Vt)
-    end
-    gui()
-end
-
 plot_V(5)
-plot_V(55)
-plot_V(60, 1)
 
-function plot_policyA1(t = 5, ixY = numPointsY)
-    plot(size = (1200, 800), title = "Policy Function for Assets at time t = $t and ixY = $ixY")
-    for ixtYtr = 1:numPointsYTrans
-        A1 = policyA1[t, :, ixY, ixtYtr]
-        plot!(Agrid[t, :], A1, label = "ixtYtr = $ixtYtr", marker = :circle, hover = A1)
-    end
-    gui()
-end
-plot_policyA1(55)
+plot_policyA1(10)
 plot_policyA1(55, 1)
-
-# Do we have an integration problem? When sigma_trans = .000001, I expected EV to look the same
-# Ah but of course EV includes the transition probabilities
 
 ################################################################################
 ## Profile

@@ -2,6 +2,8 @@
 
 function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTransitionMrx)
 
+    error("Have not yet added transitory income shocks")
+
     ## I'm using this type of parallelization:
     # a = SharedArray{Float64}(10)
     # @parallel for i = 1:10

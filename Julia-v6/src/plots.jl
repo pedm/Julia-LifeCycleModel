@@ -111,3 +111,32 @@ end
 # subplot(223)
 # plot(collect(1:T), ypath)
 # title("Income")
+
+function plot_V(t = 5, ixY = numPointsY)
+    EVt = EV[t, :, ixY]
+    plot(Agrid[t, :], EVt, label = "EV", marker = :circle, size = (1200, 800), title = "EV and V at time t = $t and ixY = $ixY", hover = EVt)
+    for ixtYtr = 1:numPointsYTrans
+        Vt = V[t, :, ixY, ixtYtr]
+        plot!(Agrid[t, :], Vt, label = "ixtYtr = $ixtYtr", marker = :circle, hover = Vt)
+    end
+    gui()
+end
+
+function plot_policyA1(t = 5, ixY = numPointsY)
+    plot(size = (1200, 800), title = "Policy Function for Assets at time t = $t and ixY = $ixY")
+    for ixtYtr = 1:numPointsYTrans
+        A1 = policyA1[t, :, ixY, ixtYtr]
+        plot!(Agrid[t, :], A1, label = "ixtYtr = $ixtYtr", marker = :circle, hover = A1)
+    end
+    gui()
+end
+
+function plot_EV_over_time()
+    # Recall EV dimensions are T+1, numPointsA, numPointsY
+    t= 5
+    plot(Agrid[t, :], EV[t, :, numPointsY], label = "t = $t", marker = :circle, size = (1200, 800), title = "EV")
+    for t = 15:10:55
+        plot!(Agrid[t, :], EV[t, :, numPointsY], label = "t = $t", marker = :circle)
+    end
+    gui()
+end
