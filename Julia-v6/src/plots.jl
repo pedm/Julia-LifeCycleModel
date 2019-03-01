@@ -72,19 +72,22 @@ function plotYCAndApaths( ypath, cpath, apath )
             xlabel = "Age",
             label = "Income",
             title = string("Time path of individual ", i),
-            size	= (1200,800)
+            size	= (1200,800),
+            hover = ypath[:,i]
             )
 
         plot!(cpath[:,i],
             lc = "green",
             linewidth = 2,
-            label = "Consumption"
+            label = "Consumption",
+            hover = cpath[:,i]
             )
 
         plot!(apath[:,i],
             lc = "blue",
             linewidth = 2,
-            label = "Assets"
+            label = "Assets",
+            hover = apath[:,i]
             )
         gui()
     end

@@ -74,3 +74,29 @@ using FastGaussQuadrature
 ## QUESTION: can I integrate over A instead? Then I can just interpolate with respect to A. And I won't have to solve it 10x more
 # Example: solve for V as I was doing previously
 # Create an interpolated V over A
+
+
+@time nodes, weights = gausshermite( 10 )
+values = map(y -> 1., nodes)
+@time dot( weights, values ) / sqrt(π)
+# WOW that fails horribly!!!
+
+function gausshermite_normal_distribution(n, μ, σ)
+    nodes, weights = gausshermite( n )
+    nodes_mod      = sqrt(2.0) * σ .* nodes + μ
+    weights_mod    = weights ./ sqrt(π)
+    return nodes_mod, weights_mod
+end
+
+nodes, weights = gausshermite_normal_distribution(9, 0.0, 0.1)
+
+sum(weights)
+
+normpdf_pat(y, μ, σ) = 1.0/(σ*sqrt(2 * π)) * exp( - (y - μ)^2.0 / (2.0 * σ^2.0))
+
+normpdf_change_of_variables(x, μ, σ) = 1.0/sqrt(π) * exp( - x^2.0 )
+
+
+normpdf_pat(0.3, 0.0, 1.0)
+normpdf_custom(z::Number) = exp(-abs2(z)/2) * invsqrt2π
+normpdf_custom(0.3)

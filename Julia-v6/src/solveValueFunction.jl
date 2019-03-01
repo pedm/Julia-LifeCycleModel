@@ -6,9 +6,14 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
     # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS NAN
 
     # Matrices to hold the policy and value functions
-    V        = zeros(T+1, numPointsA, numPointsY)
-    policyA1 = zeros(T,   numPointsA, numPointsY)
-    policyC  = zeros(T,   numPointsA, numPointsY)
+    V        = zeros(T+1, numPointsA, numPointsY, numPointsYTrans)
+    policyA1 = zeros(T,   numPointsA, numPointsY, numPointsYTrans)
+    policyC  = zeros(T,   numPointsA, numPointsY, numPointsYTrans)
+
+    # Setup nodes and weights for transitory income shocks
+    μtransshocks = -0.5 * params["sigma_trans"]
+    Ytrans_grid, Ytrans_weights = gausshermite_normal_distribution(numPointsYTrans, μtransshocks, params["sigma_trans"] )
+    Ytrans_grid = exp.(Ytrans_grid)
 
     # Matrices to hold expected value and marginal utility functions
     EV  = zeros(T+1, numPointsA, numPointsY);
@@ -16,7 +21,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :] = 0
+    V[T + 1, :, :, :] = 0
     EV[T + 1, :, :] = 0
 
     ## ------------------------------------------------------------------------
@@ -30,31 +35,38 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
             # STEP 1. solve problem at grid points in assets and income
             # ---------------------------------------------------------
             for ixY = 1:1:numPointsY               # points on income grid
-                # relevant section of EV matrix (in assets tomorrow)
-                # NOTE: that EV1 will only depend on the persistent component of income
-                EV1                                                 = EV[ixt + 1,:, ixY]
+                for ixYtrans = 1:numPointsYTrans
+                    # relevant section of EV matrix (in assets tomorrow)
+                    # NOTE: that EV1 will only depend on the persistent component of income
+                    EV1                                                 = EV[ixt + 1,:, ixY]
 
-                # Assuming no transitory income shocks
-                # negV, policyA1[ixt,ixA,ixY], policyC[ixt, ixA, ixY] = Value(params, Agrid, Ygrid, EV1, ixt, ixA, ixY, 0.0)
+                    # Assuming no transitory income shocks
+                    # negV, policyA1[ixt,ixA,ixY], policyC[ixt, ixA, ixY] = Value(params, Agrid, Ygrid, EV1, ixt, ixA, ixY, 0.0)
 
-                # Allowing for transitory income shocks
-                function Value_times_pdf(Y_trans::Float64)
-                    return Value_return1(params, Agrid, Ygrid, EV1, ixt, ixA, ixY, Y_trans) * normpdf(-0.5 * params["sigma_trans"], params["sigma_trans"], Y_trans)
-                end
+                    # Allowing for transitory income shocks
+                    # function Value_times_pdf(Y_trans::Float64)
+                    #     return Value_return1(params, Agrid, Ygrid, EV1, ixt, ixA, ixY, Y_trans) * normpdf(μtransshocks, params["sigma_trans"], Y_trans)
+                    # end
+                    # negV = quadgk(Value_times_pdf, -normBnd * params["sigma_trans"], normBnd * params["sigma_trans"]; reltol = 0.1, abstol=0.1)[1]
+                    # NOTE: problem, this integration method will not work because we want to obtain policy functions too
+                    # TODO: will need to produce policy functions!!!!
 
-                # NOTE: problem, this integration method will not work because we want to obtain policy functions too
-                negV = quadgk(Value_times_pdf, -normBnd * params["sigma_trans"], normBnd * params["sigma_trans"]; reltol = 0.1, abstol=0.1)[1]
-                # QUESTION: is it acceptable to cutoff at 0.0 rather than -normBnd * σ ???
+                    if ixt < Tretire
+                        Ytrans = Ytrans_grid[ixYtrans]
+                    else
+                        Ytrans = 0.0
+                    end
 
-                # TODO: will need to produce policy functions!!!!
-
-                V[ixt, ixA, ixY]                                    = -negV
+                    negV, policyA1[ixt,ixA,ixY, ixYtrans], policyC[ixt, ixA, ixY, ixYtrans] = Value(params, Agrid, Ygrid, EV1, ixt, ixA, ixY, Ytrans)
+                    V[ixt, ixA, ixY, ixYtrans]                                              = -negV
+                end #ixY_trans
             end #ixY
 
             # STEP 2. integrate out income today conditional on income
             # yesterday to get EV and EdU
             # --------------------------------------------------------
-            realisedV = V[ixt, ixA, :]
+            # Integrate out over transitory income shocks
+            realisedV = V[ixt, ixA, :, :] * Ytrans_weights
             for ixY = 1:1:numPointsY
                 EV[ixt, ixA, ixY]  = dot( incTransitionMrx[ixY,:], realisedV)
             end #ixY
@@ -81,7 +93,13 @@ function Value(params::Dict{String,Float64}, Agrid, Ygrid, EV1, ixt, ixA, ixY, Y
 
     # Value of income and information for optimisation
     A    = Agrid[ixt, ixA]                     # assets today
-    Y    = Ygrid[ixt, ixY] + Y_trans           # income today
+    Y    = Ygrid[ixt, ixY] * Y_trans           # income today
+
+    # Government imposed income floor
+    if Y < minCons
+        Y = minCons
+    end
+
     lbA1 = Agrid[ixt + 1, 1]                   # lower bound: assets tomorrow
     ubA1 = (A + Y - minCons)*(1+r)             # upper bound: assets tomorrow
 
@@ -167,3 +185,20 @@ function Value_return1(params::Dict{String,Float64}, Agrid, Ygrid, EV1, ixt, ixA
 
     return negV
 end
+
+# Gauss Hermite Quadrature - meant for integrating from -Inf to Inf
+# where the inside of the integral is something of the form e^(-x2) * f(x)
+# https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature
+# https://jblevins.org/notes/quadrature
+# Note that we have to change the variable slightly to get the normal distribution into that form
+# Say we want to integrate ∫ p(x) V(x) dx where p(x) is the normal pdf and V(x) is the value function evaluated at x
+
+function gausshermite_normal_distribution(n, μ, σ)
+    nodes, weights = gausshermite( n ) # from package FastGaussQuadrature
+    nodes_mod      = sqrt(2.0) * σ .* nodes + μ
+    weights_mod    = weights ./ sqrt(π)
+    return nodes_mod, weights_mod
+end
+
+# NOTE that the nodes will sum up to 1. This is the same as integrating over the normal pdf from -Inf to Inf
+# nodes, weights = gausshermite_normal_distribution(9, 0.0, sqrt(0.05))

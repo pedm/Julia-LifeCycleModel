@@ -61,6 +61,7 @@ catch
 	@everywhere using Optim
 	using Roots
     using QuadGK
+    using FastGaussQuadrature
 end
 
 include("src/modelSetup.jl")
@@ -83,18 +84,24 @@ include("src/plots.jl")
 # TODO: https://docs.julialang.org/en/stable/manual/performance-tips/#tools-1
 params                     = Dict{String, Float64}()
 params["tol"]              = 1e-10               # max allowed error
-params["minCons"]          = 1e-5                # min allowed consumption
+params["minCons"]          = 1e-4                # min allowed consumption
 params["r"]                = 1.0/0.95 - 1.0      # Interest rate
 params["beta"]             = 0.95                # 1/(1+r) # Discount factor
-params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
+params["gamma"]            = 2.0                 # Coefficient of relative risk aversion
 params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
 params["startA"]           = 0.0                 # How much asset do people start life with
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
-params["rho"]              = 0.75                # persistency of log income
-params["sigma"]            = 0.00000001                # variance of innovations to log income
+params["rho"]              = 0.95                # persistency of log income
 
-params["sigma_trans"]      = 0.1
+# Seems something is not working right -- why does consumption go up so much with time???
+params["sigma"]            = 0.3                # variance of innovations to log income
+params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
+
+
+params["sigma"]            = 0.1                # variance of innovations to log income
+params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
+
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option
@@ -104,6 +111,7 @@ const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 10                  # number of points in the income grid
 const numPointsA           = 100                 # number of points in the discretised asset grid
+const numPointsYTrans      = 5                   # number of points in the transitory income grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
@@ -177,6 +185,46 @@ plotApath(apath, MinAss)
 
 plotYCAndApaths( ypath, cpath, apath );
 
+# T+1, numPointsA, numPointsY);
+# policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid,
+function plot_EV_over_time()
+    t= 5
+    plot(Agrid[t, :], EV[t, :, numPointsY], label = "t = $t", marker = :circle, size = (1200, 800), title = "EV")
+    for t = 15:10:55
+        plot!(Agrid[t, :], EV[t, :, numPointsY], label = "t = $t", marker = :circle)
+    end
+    gui()
+end
+
+plot_EV_over_time()
+
+function plot_V(t = 5, ixY = numPointsY)
+    EVt = EV[t, :, ixY]
+    plot(Agrid[t, :], EVt, label = "EV", marker = :circle, size = (1200, 800), title = "EV and V at time t = $t and ixY = $ixY", hover = EVt)
+    for ixtYtr = 1:numPointsYTrans
+        Vt = V[t, :, ixY, ixtYtr]
+        plot!(Agrid[t, :], Vt, label = "ixtYtr = $ixtYtr", marker = :circle, hover = Vt)
+    end
+    gui()
+end
+
+plot_V(5)
+plot_V(55)
+plot_V(60, 1)
+
+function plot_policyA1(t = 5, ixY = numPointsY)
+    plot(size = (1200, 800), title = "Policy Function for Assets at time t = $t and ixY = $ixY")
+    for ixtYtr = 1:numPointsYTrans
+        A1 = policyA1[t, :, ixY, ixtYtr]
+        plot!(Agrid[t, :], A1, label = "ixtYtr = $ixtYtr", marker = :circle, hover = A1)
+    end
+    gui()
+end
+plot_policyA1(55)
+plot_policyA1(55, 1)
+
+# Do we have an integration problem? When sigma_trans = .000001, I expected EV to look the same
+# Ah but of course EV includes the transition probabilities
 
 ################################################################################
 ## Profile
