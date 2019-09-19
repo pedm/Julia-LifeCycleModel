@@ -8,10 +8,10 @@ This program solves and simulates a finite period consumption and saving (cake-e
 This version adds a realistic income stream with uncertainty. The household gradually accumulates assets to smooth consumption over income fluctuations and during retirement.
 
 # Setup
-This code was written in Julia v0.6. I think the easiest way to get up and running is with the free version of Julia Pro
+I think the easiest way to get up and running is with the free version of Julia Pro
 https://juliacomputing.com/products/juliapro.html
 
 Other useful Julia resources include:
 * https://en.wikibooks.org/wiki/Introducing_Julia
 * https://juliadocs.github.io/Julia-Cheat-Sheet/
-* https://docs.julialang.org/en/stable/
+* https://docs.julialang.org/en/v1/
