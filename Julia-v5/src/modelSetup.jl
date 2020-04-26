@@ -45,9 +45,9 @@ end
 function getGrid(minongrid, maxongrid, GridPoints, method)
     span = maxongrid - minongrid
     if method == "equalsteps"
-        grid= linspace(minongrid, span, GridPoints)
+        grid= range(minongrid, stop = span, length = GridPoints)
     elseif method == "5logsteps"
-        loggrid = linspace(log(1+log(1+log(1+log(1+log(1))))), log(1+log(1+log(1+log(1+log(1+span))))), GridPoints)
+        loggrid = range(log(1+log(1+log(1+log(1+log(1))))), stop = log(1+log(1+log(1+log(1+log(1+span))))), length = GridPoints)
         grid = exp.(exp.(exp.(exp.(exp.(loggrid)-1)-1)-1)-1)-1
     end
 end
@@ -75,9 +75,9 @@ function getIncomeGrid(params)
        #Now get a matrix, T * numPointsY that holds the grid for each income in
        #each year. Do likewise with minimum and maximum income
        #----------------------------------------#
-       Ygrid = repmat([y'], T, 1)
-       minInc = repmat([minInc'], T, 1)
-       maxInc = repmat([maxInc'], T, 1)
+       Ygrid = repeat([y'], T, 1)
+       minInc = repeat([minInc'], T, 1)
+       maxInc = repeat([maxInc'], T, 1)
 
     #----------------------------------------#
     # Scenario where there is uncertainty - income draws are log normally distributed
@@ -124,9 +124,9 @@ elseif isUncertainty == 1
            #Now get a matrix, T * numPointsY that holds the grid for each income in
            #each year. Do likewise with minimum and maximum income
            #----------------------------------------#
-           Ygrid = repmat(y', T, 1)
-           minInc = repmat([minInc'], T, 1)
-           maxInc = repmat([maxInc'], T, 1)
+           Ygrid = repeat(y', T, 1)
+           minInc = repeat([minInc'], T, 1)
+           maxInc = repeat([maxInc'], T, 1)
 
     end  # if isUncertainty == 0
 

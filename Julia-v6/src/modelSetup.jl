@@ -3,8 +3,8 @@ function getMinAndMaxAss(params, minInc, maxInc)
 
     ## ------------------------------------------------------------------------
     # Initialise the output matrices
-       BC   = zeros(T+1,1)
-       maxA = zeros(T+1,1)
+    BC   = zeros(T+1,1)
+    maxA = zeros(T+1,1)
     # do I have to initialise the size NaN(T+1, 1) ?
 
     ## ------------------------------------------------------------------------
@@ -20,7 +20,7 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # if borrowing is not allowed, replace negative points in the borrowing
     # constraint with zero
     if (borrowingAllowed == 0 )
-        BC[BC.<0] = 0
+        BC[BC.<0] .= 0
     end
 
     # Maximum Assets
@@ -34,9 +34,10 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # replacing any element of maxA that is less than the corresponding element
     # of BC with that corresponding element plus 1
     for ixt = 1:1:T+1
-      if maxA[ixt] <= BC[ixt]
-          maxA[ixt] = BC[ixt] + 1;
-      end
+        if maxA[ixt] <= BC[ixt]
+            maxA[ixt] = BC[ixt] + 0.0001;
+            # maxA[ixt] = BC[ixt] + 1.0;
+        end
     end
 
     return BC, maxA
@@ -45,10 +46,13 @@ end
 function getGrid(minongrid, maxongrid, GridPoints, method)
     span = maxongrid - minongrid
     if method == "equalsteps"
-        grid= linspace(minongrid, span, GridPoints)
+        grid = range(minongrid, stop = span, length = GridPoints)
     elseif method == "5logsteps"
-        loggrid = linspace(log(1+log(1+log(1+log(1+log(1))))), log(1+log(1+log(1+log(1+log(1+span))))), GridPoints)
-        grid = exp.(exp.(exp.(exp.(exp.(loggrid)-1)-1)-1)-1)-1
+        start   = log(1+log(1+log(1+log(1+log(1)))))
+        stop    = log(1+log(1+log(1+log(1+log(1+span)))))
+
+        loggrid = range(start, stop = stop, length = GridPoints)
+        grid    = exp.(exp.(exp.(exp.(exp.(loggrid).-1).-1).-1).-1).-1
     end
 end
 
@@ -75,15 +79,15 @@ function getIncomeGrid(params)
        #Now get a matrix, T * numPointsY that holds the grid for each income in
        #each year. Do likewise with minimum and maximum income
        #----------------------------------------#
-       Ygrid = repmat([y'], T, 1)
-       minInc = repmat([minInc'], T, 1)
-       maxInc = repmat([maxInc'], T, 1)
+       Ygrid = repeat([y'], T, 1)
+       minInc = repeat([minInc'], T, 1)
+       maxInc = repeat([maxInc'], T, 1)
 
     #----------------------------------------#
     # Scenario where there is uncertainty - income draws are log normally distributed
     #----------------------------------------#
 
-elseif isUncertainty == 1
+    elseif isUncertainty == 1
 
            # First get the standard deviation of income (from sigma and rho)
            sig_inc = params["sigma"] / ((1- params["rho"]^2)^0.5)
@@ -92,7 +96,7 @@ elseif isUncertainty == 1
            # are equiprobable. The output lNormDev gives the (numPointsY + 1)
            # points that bound the sections, the output ly gives the
            # (numPointsY) expected value in each section
-           lNormDev, ly = getNormDev(params["mu"], sig_inc, normBnd, numPointsY );
+           lNormDev, ly = getNormDev(params["mu"], sig_inc, normBnd, numPointsY )
 
            #---------------------#
            #Get transition matrix Q(i, j). The prob of income j in t+1
@@ -113,7 +117,7 @@ elseif isUncertainty == 1
            end #i
 
            y = exp.(ly);                      # Get y from log y
-           minInc = exp(-normBnd * sig_inc); #Get the minimum income in each year
+           minInc = exp(-normBnd * sig_inc) #Get the minimum income in each year
            maxInc = exp(normBnd * sig_inc);  #Get the maximum income in each year
 
            if (y[1] < 1e-4) || (y[ numPointsY ] > 1e5)
@@ -124,9 +128,9 @@ elseif isUncertainty == 1
            #Now get a matrix, T * numPointsY that holds the grid for each income in
            #each year. Do likewise with minimum and maximum income
            #----------------------------------------#
-           Ygrid = repmat(y', T, 1)
-           minInc = repmat([minInc'], T, 1)
-           maxInc = repmat([maxInc'], T, 1)
+           Ygrid = repeat(y', T, 1)
+           minInc = repeat([minInc'], T, 1)
+           maxInc = repeat([maxInc'], T, 1)
 
     end  # if isUncertainty == 0
 
@@ -141,9 +145,9 @@ elseif isUncertainty == 1
        minInc[:, :] = 0
        maxInc[:, :] = 0
     elseif (Tretire > 0) && (Tretire <=T)  #retire at some age
-        Ygrid[Tretire:T, :] = 0
-        minInc[Tretire:T, :] = 0
-        maxInc[Tretire:T, :] = 0
+        Ygrid[Tretire:T, :]  .= 0
+        minInc[Tretire:T, :] .= 0
+        maxInc[Tretire:T, :] .= 0
     end
 
     return Ygrid, Q, minInc, maxInc
@@ -229,7 +233,7 @@ end
 
 function stdnormpdf_manual(x)
     # This function gives the pdf of a standard normal
-    pdf = ((sqrt(2.*pi)).^-1) * (exp.( - ((x).^2)/(2)))
+    pdf = ((sqrt(2.0 * pi)).^-1) * (exp.( - ((x) .^ 2.0)/(2.0)))
     return pdf
 end
 

@@ -21,8 +21,8 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :, :] = 0
-    EV[T + 1, :, :] = 0
+    V[T + 1, :, :, :] .= 0
+    EV[T + 1, :, :]   .= 0
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
@@ -102,12 +102,13 @@ function Value(params::Dict{String,Float64}, Agrid, Ygrid, EV1, ixt, ixA, ixY, Y
 
     # define interpolation function itp
     knots_x = (Agrid1,)
-    itp = interpolate(knots_x, EV1, Gridded(Linear()))
+    # itp = interpolate(knots_x, EV1, Gridded(Linear())) # Linear Spline
+    itp = Spline1D(Agrid1, EV1; k=3, bc="nearest") # Cubic Spline (using Dierckx)
 
     # TODO: why so much slower with float rather than int?
-    # @time itp[2.0]
-    # @time itp[2.0]
-    #
+    # @time itp(2.0)
+    # @time itp(2.0)
+
     # @time itp[2]
     # @time itp[2]
 
@@ -122,10 +123,11 @@ function Value(params::Dict{String,Float64}, Agrid, Ygrid, EV1, ixt, ixA, ixY, Y
         function obj(A1::Float64)
             return objectivefunc(params, itp, A1, A, Y)
         end
-        Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
+        Res = optimize(obj, lbA1, ubA1, abs_tol = 1e-5)          # println(Res)
         policyA1 = Res.minimizer
         negV = Res.minimum     # if interior solution
     end # if (ubA1 - lbA1 < minCons)
+
 
     # Store solution and its value
     policyC = A + Y - policyA1/(1+r)
@@ -190,9 +192,9 @@ end
 # Note that we have to change the variable slightly to get the normal distribution into that form
 # Say we want to integrate ∫ p(x) V(x) dx where p(x) is the normal pdf and V(x) is the value function evaluated at x
 
-function gausshermite_normal_distribution(n, μ, σ)
+function gausshermite_normal_distribution(n::Int64, μ::Float64, σ::Float64)
     nodes, weights = gausshermite( n ) # from package FastGaussQuadrature
-    nodes_mod      = sqrt(2.0) * σ .* nodes + μ
+    nodes_mod      = sqrt(2.0) * σ .* nodes .+ μ
     weights_mod    = weights ./ sqrt(π)
     return nodes_mod, weights_mod
 end

@@ -20,7 +20,7 @@ function simNoUncer(Agrid, Ygrid, policyA1,V,startA)
         # v[t  , 1]   = interp1(Agrid[t, :],V[t, :],a[t, 1],interpMethod, 'extrap')
         knots_x = (Agrid[t, :],)
         itp = interpolate(knots_x, V[t, :], Gridded(Linear()))
-        v[t  , 1]   = itp[ a[t, 1] ]
+        v[t  , 1]   = itp( a[t, 1] )
 
         # a[t+1, 1]   = interp1(Agrid[t, :], policyA1[t, :] ,a[t, 1],interpMethod, 'extrap')
         knots_x = (Agrid[t, :],)
@@ -78,7 +78,7 @@ function simWithUncer(params, Agrid, Ygrid, policyA1, EV)
     seed2 = 234636;  # For initial income
     seed3 = 2354654;  # For transitory income shocks
 
-    sig_inc        = sigma/ ((1-rho^2)^0.5);
+    sig_inc        = sigma/ ((1-rho^2)^0.5)
     e              = getNormalDraws( 0, sigma, T, numSims, seed1); # normally distributed random draws for the innovation
     logy1          = getNormalDraws( mu, sig_inc, 1, numSims, seed2); # a random draw for the initial income
 
@@ -122,11 +122,29 @@ function simWithUncer(params, Agrid, Ygrid, policyA1, EV)
                 knots_x = (Agrid[t, :], Ygrid[t, :], Ytrans_grid)
                 knots_EV = (Agrid[t, :], Ygrid[t, :])
 
-                itp = interpolate(knots_x, tA1, Gridded(Linear()))
-                a[t+1, s] = itp[ a[t, s], y_perm[t, s], y_trans[t, s] ]
+                itp_basic = interpolate(knots_x, tA1, Gridded(Linear()))
+                itp       = extrapolate(itp_basic, Interpolations.Line() ) # Extrapolation necessary because Ygrid points are in the middle of the two extremes
 
-                itp_V = interpolate(knots_EV, tV, Gridded(Linear()))
-                v[t, s] = itp_V[ a[t, s], y_perm[t, s] ]
+                try
+                    a[t+1, s] = itp( a[t, s], y_perm[t, s], y_trans[t, s] )
+                catch
+                    println("Some issue with interpolation: print diagonistics")
+                    println("t = $t              ")
+                    println("x = $(knots_x      )")
+                    println("a = $(a[t, s]      )")
+                    println("yperm = $(y_perm[t, s] )")
+                    println("y trans = $(y_trans[t, s])")
+
+                    # NOTE: April 2020: seems like the issue is that yperm < the smallest grid point. WHY !?!?!
+                    # TODO: figure out what causes that
+
+                    a[t+1, s] = itp( a[t, s], y_perm[t, s], y_trans[t, s] )
+                end
+
+                itp_V_basic = interpolate(knots_EV, tV, Gridded(Linear()))
+                itp_V       = extrapolate(itp_V_basic, Interpolations.Flat() )
+
+                v[t, s] = itp_V( a[t, s], y_perm[t, s] )
 
             else                          # next for the post retirement periods
                 # clear tA1 tV;
@@ -137,10 +155,10 @@ function simWithUncer(params, Agrid, Ygrid, policyA1, EV)
 
                 knots_x = (Agrid[t, :],)
                 itp = interpolate(knots_x, tA1, Gridded(Linear()))
-                a[t+1, s] = itp[ a[t, s] ]
+                a[t+1, s] = itp( a[t, s] )
 
                 itp_V = interpolate(knots_x, tV, Gridded(Linear()))
-                v[t, s] = itp_V[ a[t, s] ]
+                v[t, s] = itp_V( a[t, s] )
 
             end # if (t < Tretire)
 
@@ -166,7 +184,8 @@ function getNormalDraws( mu, std_dev,  dim1, dim2, seed)
 
     ## ------------------------------------------------------------------------
     #Set the seed
-    srand(seed)
+    # srand(seed)
+    Random.seed!(seed)
 
     ## ------------------------------------------------------------------------
     # Draw standard normal draws, and transformthem so they come from a

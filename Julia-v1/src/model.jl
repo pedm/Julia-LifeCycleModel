@@ -20,7 +20,7 @@ function objectivefunc(itp, A1, A0)
     # beta = params["beta"]
     # r = params["r"]
 
-    cons = A0  - (A1)/(1+r)
+    cons = A0  - (A1) / (1.0+r)
     value = utility(cons) + beta * itp[A1]
 
     ## ------------------------------------------------------------------------

@@ -246,7 +246,7 @@ function qnwsimp(n::Int, a::Real, b::Real)
 
     dx = (b - a) / (n - 1)
     nodes = collect(a:dx:b)
-    weights = repmat([2.0, 4.0], Int((n + 1) / 2))
+    weights = repeat([2.0, 4.0], Int((n + 1) / 2))
     weights = weights[1:n]
     weights[1] = 1
     weights[end] = 1
@@ -877,14 +877,14 @@ function _quadnodes(
         d::Distributions.ContinuousUnivariateDistribution, N::Int,
         q0::Real, qN::Real, ::Union{Even,Type{Even}}
     )
-    collect(linspace(quantile(d, q0), quantile(d, qN), N))
+    collect(range(quantile(d, q0), stop = quantile(d, qN), length = N))
 end
 
 function _quadnodes(
         d::Distributions.ContinuousUnivariateDistribution, N::Int,
         q0::Real, qN::Real, ::Union{Quantile,Type{Quantile}}
     )
-    quantiles = linspace(q0, qN, N)
+    quantiles = range(q0, stop = qN, length = N)
     z = quantile.(d, quantiles)
 end
 

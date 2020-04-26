@@ -128,6 +128,13 @@ function plot_policyA1(t = 5, ixY = numPointsY)
         A1 = policyA1[t, :, ixY, ixtYtr]
         plot!(Agrid[t, :], A1, label = "ixtYtr = $ixtYtr", marker = :circle, hover = A1)
     end
+
+    # t = t+1
+    # for ixtYtr = 1:numPointsYTrans
+    #     A1 = policyA1[t, :, ixY, ixtYtr]
+    #     plot!(Agrid[t, :], A1, label = "ixtYtr = $ixtYtr and time = $(t+1)", marker = :circle, hover = A1, xlims = (0, 40))
+    # end
+
     gui()
 end
 

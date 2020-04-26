@@ -27,9 +27,9 @@ end
 function getGrid(minongrid, maxongrid, GridPoints, method)
     span = maxongrid - minongrid
     if method == "equalsteps"
-        grid= linspace(minongrid, span, GridPoints)
+        grid= range(minongrid, stop = span, length = GridPoints)
     elseif method == "5logsteps"
-        loggrid = linspace(log(1+log(1+log(1+log(1+log(1))))), log(1+log(1+log(1+log(1+log(1+span))))), GridPoints)
+        loggrid = range(log(1+log(1+log(1+log(1+log(1))))), stop = log(1+log(1+log(1+log(1+log(1+span))))), length = GridPoints)
         grid = exp.(exp.(exp.(exp.(exp.(loggrid)-1)-1)-1)-1)-1
     end
 end

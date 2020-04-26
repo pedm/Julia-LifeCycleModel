@@ -102,7 +102,7 @@ const numPointsY           = 10                  # number of points in the incom
 const numPointsA           = 100                 # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
-const numSims              = 10                  # How many individuals to simulate
+const numSims              = 1000                  # How many individuals to simulate
 const useEulerEquation     = true                # Solve the model using the euler equation?
 const saveValue_inEE       = false               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 const linearise            = false                # Whether to linearise the slope of EdU when using EE
@@ -144,6 +144,19 @@ end
 ################################################################################
 
 cpath, apath, vpath, ypath = simWithUncer(params, Agrid, Ygrid, policyA1, EV)
+
+################################################################################
+## Save a CSV with the simulated data
+################################################################################
+
+id = repeat((1:numSims)', T, 1)
+age = repeat(1:T, 1, numSims)
+cpath
+apath_cut = apath[1:T, :]
+using DataFrames
+using CSV
+df = DataFrame(id = id[:], age = age[:], cpath = cpath[:], apath = apath_cut[:], ypath = ypath[:])
+CSV.write("Simulated_Panel_Euler_$useEulerEquation.csv", df)
 
 ################################################################################
 ## Plot

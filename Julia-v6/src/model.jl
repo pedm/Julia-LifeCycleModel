@@ -1,4 +1,4 @@
-# TODO: will there be a speed improvement if I specify that params is Dict{Any,Any} ?
+    # TODO: will there be a speed improvement if I specify that params is Dict{Any,Any} ?
 @everywhere function utility(params::Dict{String,Float64}, cons::Float64)
     # Note: seems we save a lot of time by specifying type for params
 
@@ -44,7 +44,11 @@ end
     # r = params["r"]
 
     cons = A0 + Y - (A1)/(1 + params["r"])
-    value = utility(params, cons) + params["beta"] * itp[A1]
+    # try
+        value = utility(params, cons) + params["beta"] * itp(A1)
+    # catch
+    #     println("problem at a1 = $A1")
+    # end
 
     ## ------------------------------------------------------------------------
     #The optimisation routine that we will use searches for the minimum of the

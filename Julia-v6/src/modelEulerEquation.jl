@@ -9,7 +9,7 @@ function  getmargutility(cons)
                      error("Consumption is <=0")
 
    elseif gamma==1
-                    margut=1./cons
+                    margut=1 ./ cons
 
    else
                     margut = (cons).^(-gamma)

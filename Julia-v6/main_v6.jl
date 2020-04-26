@@ -24,6 +24,8 @@
 # why does consumption go up in retirement when 30 asset points?
 # did tony smith suggest a faster way to find roots when using interpolation?
 
+# Updated to Julia v1 - April 2020
+
 ################################################################################
 ## Run parallel or not
 ################################################################################
@@ -46,25 +48,43 @@ end
 # Load packages
 try
 	println("Loading packages")
+
+    using Pkg
+    using Distributed # Needed for the everywhere command
+    using LinearAlgebra
+
 	@everywhere using Interpolations
 	@everywhere using Optim
 	using Roots
     using QuadGK
     using FastGaussQuadrature
+    using Random
+    using Dierckx
 catch
 	println("Installing packages")
+
+    using Pkg
+
+    Pkg.add("Distributed")
+    Pkg.add("LinearAlgebra")
 	Pkg.add("Interpolations")
 	Pkg.add("Optim")
 	Pkg.add("Roots")
     Pkg.add("QuadGK")
     Pkg.add("FastGaussQuadrature")
+    Pkg.add("Random")
+    Pkg.add("Dierckx")
 
+    using Distributed
+    using LinearAlgebra
 	@everywhere using Interpolations
 	@everywhere using Optim
     using FastGaussQuadrature
 	using Roots
     using QuadGK
     using FastGaussQuadrature
+    using Random
+    using Dierckx
 end
 
 include("src/modelSetup.jl")
@@ -73,7 +93,7 @@ include("src/model.jl")
 include("src/modelEulerEquation.jl")
 include("src/solveValueFunction.jl")
 include("src/solveEulerEquation.jl")
-include("src/solveValueFunctionPar.jl") # parallel version
+# include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
 include("src/plots.jl")
 
@@ -87,7 +107,7 @@ include("src/plots.jl")
 # TODO: https://docs.julialang.org/en/stable/manual/performance-tips/#tools-1
 params                     = Dict{String, Float64}()
 params["tol"]              = 1e-10               # max allowed error
-params["minCons"]          = 1e-4                # min allowed consumption
+params["minCons"]          = 1e-3                # min allowed consumption
 params["r"]                = 1.0/0.95 - 1.0      # Interest rate
 params["beta"]             = 0.95                # 1/(1+r) # Discount factor
 params["gamma"]            = 2.0                 # Coefficient of relative risk aversion
@@ -102,8 +122,8 @@ params["sigma"]            = 0.3                # variance of innovations to log
 params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
 
 
-params["sigma"]            = 0.000000001                # variance of innovations to log income
-params["sigma_trans"]      = 0.000000001           # variance of transitory innovations to log income
+params["sigma"]            = 0.01                # variance of innovations to log income
+params["sigma_trans"]      = 0.01           # variance of transitory innovations to log income
 
 
 # Constants
@@ -112,13 +132,13 @@ const T                    = 60                  # Number of time period
 const Tretire              = 45                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 10                  # number of points in the income grid
-const numPointsA           = 50                 # number of points in the discretised asset grid
-const numPointsYTrans      = 15                   # number of points in the transitory income grid
+const numPointsY           = 5 # 10                  # number of points in the income grid
+const numPointsA           = 50 # 50 # 50                 # number of points in the discretised asset grid
+const numPointsYTrans      = 5 # 15                   # number of points in the transitory income grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
-const useEulerEquation     = true                # Solve the model using the euler equation?
+const useEulerEquation     = false                # Solve the model using the euler equation?
 const saveValue_inEE       = true                # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 
 ################################################################################
@@ -139,6 +159,7 @@ Agrid = zeros(T+1, numPointsA)
 for ixt = 1:1:T+1
     Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
 end
+
 # QUESTION: why does the smallest value in Agrid not correspond to smallest value in MinAss?
 
 ################################################################################
@@ -182,10 +203,12 @@ plotly() # this works better for development -- shows the plot in firefox. but i
 # gr() # this works better on the server -- does not display the plot, but allows you to save it
 # or try with plotlyjs()
 
-plot_policyA1(10)
+# plot_policyA1(10)
 plot_policyA1(55, 1)
-plot_V(5)
-plot_EV_over_time()
+plot_policyA1(56, 1)
+
+# plot_V(5)
+# plot_EV_over_time()
 
 plotCpath(cpath)
 # savefig("TEST_cpath.pdf")
@@ -197,8 +220,6 @@ plotApath(apath, MinAss)
 # savefig("TEST_ycpath.pdf")
 
 plotYCAndApaths( ypath, cpath, apath );
-
-# BUG! When both sigmas set to 0.000000001, why does consumption go up in retirement???
 
 ################################################################################
 ## Profile
