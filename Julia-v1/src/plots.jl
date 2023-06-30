@@ -7,7 +7,7 @@ end
 
 function plotApath( apath, borrowCon )
     fig = figure("apath",figsize=(8,8))
-    plot(apath, lineWidth = 2)
+    plot(apath, linewidth = 2)
     plot(borrowCon, "--r", linewidth = 2)
     # legend("1", "2", "Borrowing con");
     xlabel("Age")
@@ -17,11 +17,6 @@ end
 
 function plotCAndApaths( cpath, apath )
 
-    fig = figure("sim2a",figsize=(8,8))
-    plot(cpath[:,1],"g",linewidth = 2)
-    plot(apath[:,1],"b",linewidth = 2)
-    legend("Consumption","Assets");
-    xlabel("Age");
-    title("Time path of income and consumption")
+    display(Plots.plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2))
 
 end

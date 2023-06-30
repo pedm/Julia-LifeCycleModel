@@ -1,6 +1,11 @@
 
-# TODO: add params
-function simNoUncer(Agrid, Ygrid, policyA1,V,startA)
+function simNoUncer(params, Agrid, Ygrid, policyA1,V)
+
+    ## ------------------------------------------------------------------------
+    # Define parameters
+    r       = params["r"]
+    startA  = params["startA"]
+
     # Initialise arrays that will hold the paths of income consumption, value
     # and assets
 
@@ -8,7 +13,7 @@ function simNoUncer(Agrid, Ygrid, policyA1,V,startA)
     c = zeros(T, 1)            # consumption
     v = zeros(T, 1)            # value
     a = zeros(T + 1,1)         # this is the path at the start of each period, so we include the 'start' of death
-    y = zeros(T, 1)              # income
+    y = zeros(T, 1)            # income
 
     ## ------------------------------------------------------------------------
     # Obtain paths using the initial condition and the policy and value
@@ -16,16 +21,18 @@ function simNoUncer(Agrid, Ygrid, policyA1,V,startA)
     #-------------------------------------------------------------------------#
     a[1, 1] = startA
     for t = 1:1:T                     # loop through time periods for a particular individual
-        # Original matlab code
-        # v[t  , 1]   = interp1(Agrid[t, :],V[t, :],a[t, 1],interpMethod, 'extrap')
+        
+        # interpolate value function
         knots_x = (Agrid[t, :],)
         itp = interpolate(knots_x, V[t, :], Gridded(Linear()))
         v[t  , 1]   = itp[ a[t, 1] ]
 
-        # a[t+1, 1]   = interp1(Agrid[t, :], policyA1[t, :] ,a[t, 1],interpMethod, 'extrap')
+        # interpolate the policy function
         knots_x = (Agrid[t, :],)
         itp_assets  = interpolate(knots_x, policyA1[t, :], Gridded(Linear()))
         a[t+1, 1]   = itp_assets[ a[t, 1] ]
+
+        # fill in income and consumption
         y[t,   1]   = Ygrid[t];
         c[t  , 1]   = a[t, 1] + y[t, 1] - (a[t+1, 1]/(1+r))
     end   #t
@@ -70,7 +77,7 @@ function simWithUncer(params, Agrid, Ygrid, policyA1, EV)
     # Draw random draws for starting income and for innovations
     seed1 = 1223424; # For the innovations
     seed2 = 234636;  # For initial income
-    sig_inc = sigma/ ((1-rho^2)^0.5);
+    sig_inc = sigma/((1-rho^2)^0.5); # long-run variance for AR(1), which is assumed variance of unconditional distribution at each age
     e = getNormalDraws( 0, sigma,  T, numSims, seed1);  # normally distributed random draws for the innovation
     logy1 =  getNormalDraws( mu, sig_inc,  1, numSims, seed2); # a random draw for the initial income
 
@@ -98,33 +105,34 @@ function simWithUncer(params, Agrid, Ygrid, policyA1, EV)
         a[1, s] = startA;
          for t = 1:1:T                              # loop through time periods for a particular individual
             if (t < Tretire)                       # first for the before retirement periods
-                # clear tA1 tV;                      #necessary as the dimensions of these change as we wor through this file
                 tA1 = policyA1[t, :, :];  # the relevant part of the policy function
                 tV  = EV[t, :, :];         # the relevant part of the value function
-                # a[t+1, s] =  interp2D(Agrid[t,:]', Ygrid[t, :]', tA1, a[t, s], y[t, s]);
-                # v[t  , s] =  interp2D(Agrid[t,:]', Ygrid[t, :]', tV , a[t, s], y[t, s]);
 
                 knots_x = (Agrid[t, :], Ygrid[t, :])
-
+                
+                # interpolate policy function, instructing to linearly extrapolate outside of bounds (can happen for income)
                 itp = interpolate(knots_x, tA1, Gridded(Linear()))
-                a[t+1, s] = itp[ a[t, s], y[t, s] ]
+                etp = extrapolate(itp,Line())
+                a[t+1, s] = etp(a[t, s], y[t, s])
 
+                # interpolate value function
                 itp_V = interpolate(knots_x, tV, Gridded(Linear()))
-                v[t, s] = itp_V[ a[t, s], y[t, s] ]
+                etp_V = extrapolate(itp_V,Line())
+                v[t, s] = etp_V(a[t, s], y[t, s])
 
             else                          # next for the post retirement periods
-                # clear tA1 tV;
                 tA1 = policyA1[t, :, 1];  # the relevant part of the policy function
                 tV = EV[t, :, 1];         # the relevant part of the value function
-                # a[t+1, s] = interp1(Agrid[t,:]', tA1, a[t, s], 'linear', 'extrap');
-                # v[t,   s] = interp1(Agrid[t,:]', tV , a[t, s], 'linear', 'extrap');
 
                 knots_x = (Agrid[t, :],)
-                itp = interpolate(knots_x, tA1, Gridded(Linear()))
-                a[t+1, s] = itp[ a[t, s] ]
 
+                # interpolate policy function
+                itp = interpolate(knots_x, tA1, Gridded(Linear()))
+                a[t+1, s] = itp(a[t, s])
+                
+                # interpolate value function
                 itp_V = interpolate(knots_x, tV, Gridded(Linear()))
-                v[t, s] = itp_V[ a[t, s] ]
+                v[t, s] = itp_V(a[t, s])
 
             end # if (t < Tretire)
 
@@ -150,7 +158,7 @@ function getNormalDraws( mu, sigma,  dim1, dim2, seed)
 
     ## ------------------------------------------------------------------------
     #Set the seed
-    srand(seed)
+    seed!(seed)
 
     ## ------------------------------------------------------------------------
     # Draw standard normal draws, and transformthem so they come from a

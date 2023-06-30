@@ -5,7 +5,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
     # will need to think of V1 and Agrid1
     ## ------------------------------------------------------------------------
-    # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS NAN
+    # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS ZEROS
 
     # Matrices to hold the policy and value functions
     V        = zeros(T+1, numPointsA, numPointsY)
@@ -14,12 +14,11 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
     # Matrices to hold expected value and marginal utility functions
     EV  = zeros(T+1, numPointsA, numPointsY);
-    # EdU = zeros(T,   numPointsA, numPointsY);
-
+    
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :] = 0
-    EV[T + 1, :, :] = 0
+    V[T + 1, :, :] .= 0
+    EV[T + 1, :, :] .= 0
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
@@ -42,8 +41,8 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                 EV1  = EV[ixt + 1,:, ixY]         # relevant section of EV matrix (in assets tomorrow)
 
                 # define interpolation function itp
-                knots_x = (Agrid1,)
-                itp = interpolate(knots_x, EV1, Gridded(Linear()))
+                nodes = (Agrid1,)
+                itp = interpolate(nodes, EV1, Gridded(Linear()))
 
                 # TODO: why so much slower with float rather than int?
                 # @time itp[2.0]
@@ -79,7 +78,7 @@ function solveValueFunction(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
             # --------------------------------------------------------
             realisedV = V[ixt, ixA, :]
             for ixY = 1:1:numPointsY
-                EV[ixt, ixA, ixY]  = dot( incTransitionMrx[ixY,:], realisedV)
+                EV[ixt, ixA, ixY]  = dot(incTransitionMrx[ixY,:], realisedV)
             end #ixY
 
         end #ixA

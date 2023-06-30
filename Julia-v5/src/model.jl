@@ -2,30 +2,12 @@
 @everywhere function utility(params::Dict{String,Float64}, cons::Float64)
     # Note: seems we save a lot of time by specifying type for params
 
-    # if gamma == 1
-    #     utils = log(cons)
-    # else
-        utils = ((cons)^(params["gamma_mod"])  )/(params["gamma_mod"])
-    # end
+    if params["gamma"] == 1
+         utils = log(cons)
+    else
+        utils = ((cons).^(params["gamma_mod"])  )./(params["gamma_mod"])
+    end
 end
-
-# @everywhere function utility(params::Dict{String,Any}, cons::Float64)
-#     # if gamma == 1
-#     #     utils = log(cons)
-#     # else
-#         gamma_mod::Float64 = params["gamma_mod"] # seems we save a lot of time by specifying type here
-#         utils = ((cons)^(gamma_mod)  )/(gamma_mod)
-#     # end
-# end
-#
-# @everywhere function utility_alt2(params::Dict{String,Float64}, cons::Float64)
-#     # if gamma == 1
-#     #     utils = log(cons)
-#     # else
-#         gamma_mod::Float64 = params["gamma_mod"] # seems we save a lot of time by specifying type here
-#         utils = ((cons)^(gamma_mod)  )/(gamma_mod)
-#     # end
-# end
 
 @everywhere function objectivefunc(params::Dict{String,Float64}, itp, A1::Float64, A0::Float64, Y::Float64)
 

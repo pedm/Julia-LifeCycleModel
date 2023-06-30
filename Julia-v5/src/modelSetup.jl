@@ -5,7 +5,6 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # Initialise the output matrices
        BC   = zeros(T+1,1)
        maxA = zeros(T+1,1)
-    # do I have to initialise the size NaN(T+1, 1) ?
 
     ## ------------------------------------------------------------------------
     # Iteratively, calculate the borrowing constraints, and maximum on asset
@@ -20,23 +19,26 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # if borrowing is not allowed, replace negative points in the borrowing
     # constraint with zero
     if (borrowingAllowed == 0 )
-        BC[BC.<0] = 0
+        BC[BC.<0] .= 0
     end
 
     # Maximum Assets
     maxA[1] = params["startA"]
-    for ixt = 2:1:T+1
-        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1 + params["r"])
-    end
-
-    # If starting assets are 0 we will have maxA<0 in period 1 and BC>0.
+    # If starting assets are 0 we will have maxA<=0 in period 1 and BC>0.
     # Therefore BC>maxA (minA<maxA). Ensure that this is not the case by
     # replacing any element of maxA that is less than the corresponding element
     # of BC with that corresponding element plus 1
-    for ixt = 1:1:T+1
-      if maxA[ixt] <= BC[ixt]
-          maxA[ixt] = BC[ixt] + 1;
-      end
+    maxA[1] = params["startA"] 
+    if maxA[1] <= BC[1]
+        maxA[1] = BC[1] + 1
+    end
+    for ixt = 2:1:T+1
+        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1 + params["r"])      
+        
+        if maxA[ixt] <= BC[ixt]
+          maxA[ixt] = BC[ixt] + 1
+        end
+
     end
 
     return BC, maxA
@@ -45,10 +47,13 @@ end
 function getGrid(minongrid, maxongrid, GridPoints, method)
     span = maxongrid - minongrid
     if method == "equalsteps"
-        grid= linspace(minongrid, span, GridPoints)
+        grid= collect(range(minongrid, maxongrid, GridPoints))
+    elseif method == "logsteps"
+        loggrid = collect(range(log(1) , log(1+span), GridPoints))
+        grid = minongrid.+ exp.(loggrid) .-1
     elseif method == "5logsteps"
-        loggrid = linspace(log(1+log(1+log(1+log(1+log(1))))), log(1+log(1+log(1+log(1+log(1+span))))), GridPoints)
-        grid = exp.(exp.(exp.(exp.(exp.(loggrid)-1)-1)-1)-1)-1
+        loggrid = collect(range(log(1+log(1+log(1+log(1+log(1))))), log(1+log(1+log(1+log(1+log(1+span))))), GridPoints))
+        grid = minongrid.+ exp.(exp.(exp.(exp.(exp.(loggrid) .-1) .-1) .-1) .-1) .-1
     end
 end
 
@@ -75,9 +80,9 @@ function getIncomeGrid(params)
        #Now get a matrix, T * numPointsY that holds the grid for each income in
        #each year. Do likewise with minimum and maximum income
        #----------------------------------------#
-       Ygrid = repmat([y'], T, 1)
-       minInc = repmat([minInc'], T, 1)
-       maxInc = repmat([maxInc'], T, 1)
+       Ygrid = repeat([y'], T, 1)
+       minInc = repeat([minInc'], T, 1)
+       maxInc = repeat([maxInc'], T, 1)
 
     #----------------------------------------#
     # Scenario where there is uncertainty - income draws are log normally distributed
@@ -124,9 +129,9 @@ elseif isUncertainty == 1
            #Now get a matrix, T * numPointsY that holds the grid for each income in
            #each year. Do likewise with minimum and maximum income
            #----------------------------------------#
-           Ygrid = repmat(y', T, 1)
-           minInc = repmat([minInc'], T, 1)
-           maxInc = repmat([maxInc'], T, 1)
+           Ygrid = repeat(y', T, 1)
+           minInc = repeat([minInc], T, 1)
+           maxInc = repeat([maxInc], T, 1)
 
     end  # if isUncertainty == 0
 
@@ -137,13 +142,13 @@ elseif isUncertainty == 1
     #----------------------------------------#
 
     if Tretire == 0         # no work (retired at birth)
-       Ygrid[:, :] = 0
-       minInc[:, :] = 0
-       maxInc[:, :] = 0
+       Ygrid[:, :] .= 0
+       minInc[:, :] .= 0
+       maxInc[:, :] .= 0
     elseif (Tretire > 0) && (Tretire <=T)  #retire at some age
-        Ygrid[Tretire:T, :] = 0
-        minInc[Tretire:T, :] = 0
-        maxInc[Tretire:T, :] = 0
+        Ygrid[Tretire:T, :] .= 0
+        minInc[Tretire:T, :] .= 0
+        maxInc[Tretire:T, :] .= 0
     end
 
     return Ygrid, Q, minInc, maxInc
@@ -229,7 +234,7 @@ end
 
 function stdnormpdf_manual(x)
     # This function gives the pdf of a standard normal
-    pdf = ((sqrt(2.*pi)).^-1) * (exp.( - ((x).^2)/(2)))
+    pdf = ((sqrt(2*pi))^-1) * (exp.( - ((x).^2)/(2)))
     return pdf
 end
 

@@ -11,7 +11,7 @@ function solveValueFunction(minCons, Agrid)
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function to 0
-    V[T + 1,:] = 0
+    V[T + 1,:] = zeros(1, numPointsA)
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
