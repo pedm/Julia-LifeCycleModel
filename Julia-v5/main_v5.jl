@@ -20,7 +20,7 @@ import Random.seed!
 ## Run multi-threaded or not
 ################################################################################
 
-# haven't actually run this with more than one thread 
+# true or fale
 runparallel = false
 
 ################################################################################
