@@ -1,34 +1,24 @@
-
-
 function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTransitionMrx)
-
-    ## I'm using this type of parallelization:
-    # a = SharedArray{Float64}(10)
-    # @parallel for i = 1:10
-    #     a[i] = i
-    # end
-
     # Define params
     minCons    = params["minCons"]
     r          = params["r"]
 
     # will need to think of V1 and Agrid1
     ## ------------------------------------------------------------------------
-    # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS NAN
+    # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS ZEROS
 
     # Matrices to hold the policy and value functions
-    V        = SharedArray{Float64}(T+1, numPointsA, numPointsY)
-    policyA1 = SharedArray{Float64}(T,   numPointsA, numPointsY)
-    policyC  = SharedArray{Float64}(T,   numPointsA, numPointsY)
+    V        = zeros(T+1, numPointsA, numPointsY)
+    policyA1 = zeros(T,   numPointsA, numPointsY)
+    policyC  = zeros(T,   numPointsA, numPointsY)
 
     # Matrices to hold expected value and marginal utility functions
-    EV  = SharedArray{Float64}(T+1, numPointsA, numPointsY)
-    # EdU = zeros(T,   numPointsA, numPointsY);
-
+    EV  = zeros(T+1, numPointsA, numPointsY);
+    
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :] = 0.0
-    EV[T + 1, :, :] = 0.0
+    V[T + 1, :, :] .= 0
+    EV[T + 1, :, :] .= 0
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
@@ -37,7 +27,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTr
     for ixt=T:-1:1                                # Loop from time T-1 to 1
         Agrid1 = Agrid[ixt + 1, :]                # The grid on assets tomorrow
 
-        @sync @parallel for ixA = 1:numPointsA                  # points on asset grid
+        Threads.@threads for ixA = 1:1:numPointsA                  # points on asset grid
 
             # STEP 1. solve problem at grid points in assets and income
             # ---------------------------------------------------------
@@ -51,8 +41,8 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTr
                 EV1  = EV[ixt + 1,:, ixY]         # relevant section of EV matrix (in assets tomorrow)
 
                 # define interpolation function itp
-                knots_x = (Agrid1,)
-                itp = interpolate(knots_x, EV1, Gridded(Linear()))
+                nodes = (Agrid1,)
+                itp = interpolate(nodes, EV1, Gridded(Linear()))
 
                 # TODO: why so much slower with float rather than int?
                 # @time itp[2.0]
@@ -60,7 +50,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTr
                 #
                 # @time itp[2]
                 # @time itp[2]
-                # hgdgfd
+
                 # Compute solution
                 if (ubA1 - lbA1 < minCons)        # if liquidity constrained
                     negV = objectivefunc(params, itp, lbA1, A, Y)
@@ -69,7 +59,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTr
                     # Find the A1 that minimizes the objective function
 
                     # define obj fcn
-                    function obj(A1)
+                    function obj(A1::Float64)
                         return objectivefunc(params, itp, A1, A, Y)
                     end
                     Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
@@ -88,7 +78,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Ygrid, incTr
             # --------------------------------------------------------
             realisedV = V[ixt, ixA, :]
             for ixY = 1:1:numPointsY
-                EV[ixt, ixA, ixY]  = dot( incTransitionMrx[ixY,:], realisedV)
+                EV[ixt, ixA, ixY]  = dot(incTransitionMrx[ixY,:], realisedV)
             end #ixY
 
         end #ixA

@@ -6,46 +6,26 @@
 # Model v5: realistic income uncertainty
 
 # This code was written in Julia v0.6.2 in September 2017.
+# Updated for Julia v1.8 in April 2023.
 # This code is designed to be easy to understand, not to be as fast as possible
 
 ################################################################################
-## Run parallel or not
+## Load packages
 ################################################################################
 
-runparallel = false
+using Distributed, Interpolations, QuadGK, Optim, Roots, LinearAlgebra, Random, Plots
+import Random.seed!
 
-if runparallel == true
-    # Add workers
-    println("Add workers")
-    if nprocs() == 1
-        addprocs(7)
-    end
-    println(nprocs())
-end
+################################################################################
+## Run multi-threaded or not
+################################################################################
+
+# true or fale
+runparallel = false
 
 ################################################################################
 ## Load dependencies
 ################################################################################
-
-# Load packages
-try
-	println("Loading packages")
-	@everywhere using Interpolations
-	@everywhere using Optim
-	using Roots
-    using QuadGK
-catch
-	println("Installing packages")
-	Pkg.add("Interpolations")
-	Pkg.add("Optim")
-	Pkg.add("Roots")
-    	Pkg.add("QuadGK")
-
-	@everywhere using Interpolations
-	@everywhere using Optim
-	using Roots
-    	using QuadGK
-end
 
 include("src/modelSetup.jl")
 include("src/utils.jl")
@@ -55,7 +35,6 @@ include("src/solveValueFunction.jl")
 include("src/solveEulerEquation.jl")
 include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
-include("src/plots.jl")
 
 ################################################################################
 ## Define parameters and constants
@@ -66,7 +45,7 @@ include("src/plots.jl")
 # TODO: create a Dict of various objects (params, objs, etc)
 # TODO: https://docs.julialang.org/en/stable/manual/performance-tips/#tools-1
 params                     = Dict{String, Float64}()
-params["tol"]              = 1e-10               # max allowed error
+params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
 params["r"]                = 1.0/0.95 - 1.0      # Interest rate
 params["beta"]             = 0.95                # 1/(1+r) # Discount factor
@@ -84,13 +63,14 @@ const Tretire              = 45                  # Age at which retirement happe
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 9                   # number of points in the income grid
-const numPointsA           = 50                  # number of points in the discretised asset grid
+const numPointsA           = 100                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
 const useEulerEquation     = false               # Solve the model using the euler equation?
-const saveValue_inEE       = false               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
-const linearise            = false               # Whether to linearise the slope of EdU when using EE
+const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
+const linearise            = true               # Whether to linearise the slope of EdU when using EE
+
 
 ################################################################################
 ## Setup Model
@@ -110,9 +90,9 @@ end
 ## Solve
 ################################################################################
 
-if useEulerEquation
+if useEulerEquation == true
     println("Solve Euler Equation")
-    @time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx)
+    #@time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx)
     @time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx) # NOTE: julia uses just in time compilation, so the second run is faster than the first because the code has now been compiled
 elseif runparallel == false
     println("Solve Value Function: Serial")
@@ -134,25 +114,8 @@ cpath, apath, vpath, ypath = simWithUncer(params, Agrid, Ygrid, policyA1, EV)
 ## Plot
 ################################################################################
 
-try
-	using Plots
-catch
-	println("Installing packages")
-	Pkg.add("Plots")
-	using Plots
-end
-
-plotly() # this works better for development -- shows the plot in firefox
-# gr() # this works better on the server
-
-plotCpath(cpath)
-# savefig("TEST_cpath.pdf")
-
-plotApath(apath, MinAss)
-# savefig("TEST_apath.pdf")
-
-# plotYAndCpaths( ypath, cpath );
-# savefig("TEST_ycpath.pdf")
-
-plotYCAndApaths( ypath, cpath, apath );
+# Plot example
+plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2)
+plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2)
+plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2)
 

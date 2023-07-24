@@ -27,32 +27,31 @@ function _middle(x::Float64, y::Float64)
   return negate ? -unsigned : unsigned
 end
 
-"""
 
-    `bisection64_custom(f, a, b)`
 
-* `f`: a callable object, like a function
+#   `bisection64_custom(f, a, b)`
 
-* `a`, `b`: Real values specifying a *bracketing* interval (one with
-`f(a) * f(b) < 0`). These will be converted to `Float64` values.
+#* `f`: a callable object, like a function
 
-Runs the bisection method using midpoints determined by a trick
-leveraging 64-bit floating point numbers. After ensuring the
-intermediate bracketing interval does not straddle 0, the "midpoint"
-is half way between the two values onces converted to unsigned 64-bit
-integers. This means no more than 64 steps will be taken, fewer if `a`
-and `b` already share some bits.
+#* `a`, `b`: Real values specifying a *bracketing* interval (one with
+#`f(a) * f(b) < 0`). These will be converted to `Float64` values.
 
-The process is guaranteed to return a value `c` with `f(c)` one of
-`0`, `Inf`, or `NaN`; *or* one of `f(prevfloat(c))*f(c) < 0` or
-`f(c)*f(nextfloat(c)) > 0` holding.
+#Runs the bisection method using midpoints determined by a trick
+#leveraging 64-bit floating point numbers. After ensuring the
+#intermediate bracketing interval does not straddle 0, the "midpoint"
+#is half way between the two values onces converted to unsigned 64-bit
+#integers. This means no more than 64 steps will be taken, fewer if `a`
+#and `b` already share some bits.
 
-This function is a bit faster than the slightly more general
-`find_zero(f, [a,b], Bisection())` call.
+#The process is guaranteed to return a value `c` with `f(c)` one of
+#`0`, `Inf`, or `NaN`; *or* one of `f(prevfloat(c))*f(c) < 0` or
+#`f(c)*f(nextfloat(c)) > 0` holding.
 
-Due to Jason Merrill. Customized by Patrick Moran to allow for a tolerance
+#This function is a bit faster than the slightly more general
+#`find_zero(f, [a,b], Bisection())` call.
 
-"""
+#Due to Jason Merrill. Customized by Patrick Moran to allow for a tolerance
+
 function bisection64_custom(f, a::Float64, b::Float64, tol::Float64)
 
     if a > b
@@ -140,3 +139,36 @@ end
 #     end
 #     return c
 # end
+
+
+# I pass in the args to f for speed, as suggested here:
+# https://mmas.github.io/bisection-method-julia
+function bisection64_with_args(f, a::Float64, b::Float64, tol::Float64, args=()::Tuple )
+
+    if a > b
+        b,a = a, b
+    end
+
+    m = _middle(a,b)
+    fa, fb = sign(f(a, args...)), sign(f(b, args...))
+
+    fa * fb > 0 && throw(ArgumentError(bracketing_error))
+    (iszero(fa) || isnan(fa) || isinf(fa)) && return a
+    (iszero(fb) || isnan(fb) || isinf(fb)) && return b
+
+    while a < m < b
+        f_val = f(m, args...)
+        fm = sign(f_val)
+        # println("m = $m and f_val = $f_val")
+
+        if (abs(f_val) < tol) || iszero(fm) || isnan(fm) || isinf(fm)
+            return m
+        elseif fa * fm < 0
+            b,fb=m,fm
+        else
+            a,fa=m,fm
+        end
+        m = _middle(a,b)
+    end
+    return m
+end

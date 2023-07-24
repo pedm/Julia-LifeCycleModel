@@ -19,8 +19,8 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V[T + 1, :, :] = 0
-    EV[T + 1, :, :] = 0
+    V[T + 1, :, :] .= 0
+    EV[T + 1, :, :] .= 0
 
     ## ------------------------------------------------------------------------
     # SOLVE THE HH PROBLEM FOR TIME T ONLY
@@ -83,77 +83,51 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
                 Y    = Ygrid[ixt, ixY]            # income today
                 lbA1 = Agrid[ixt + 1, 1]          # lower bound: assets tomorrow
                 ubA1 = (A + Y - minCons)*(1+r)    # upper bound: assets tomorrow
-                # EV1  = EV[ixt + 1,:, ixY]       # relevant section of EV matrix (in assets tomorrow)
-                EdU1 = EdU[ixt + 1, :, ixY]        # relevant section of Edu matrix (in assets tomorrow)
+                EV1  = EV[ixt + 1,:, ixY]         # relevant section of EV matrix (in assets tomorrow)
+                EdU1 = EdU[ixt + 1, :, ixY]       # relevant section of Edu matrix (in assets tomorrow)
 
-                # Define interpolation function itp
+                # Define interpolation function for expected (inverse) MU of assets tomorrow
+                nodes = (Agrid1,)
                 if linearise == 0
-                    # du1AtA1 = interp1(Agrid1,Edu1,A1, interpMethod, "extrap");
-                    knots_x = (Agrid1,)
-                    EdU1_at_A1 = interpolate(knots_x, EdU1, Gridded(Linear()))
+                    itp = interpolate(nodes, EdU1, Gridded(Linear()))
                 elseif linearise == 1
-                    linEdU1 = getinversemargutility(Edu1);
-                    invDu1atA1 = interp1(Agrid1,linEdU1,A1, interpMethod, "extrap");
-                    du1AtA1 = getmargutility(invDu1atA1);
+                    linEdU1 = getinversemargutility(params,EdU1);
+                    itp = interpolate(nodes, linEdU1, Gridded(Linear()));
                 end
 
-                signoflowerbound = sign(eulerforzero(params, EdU1_at_A1, A, lbA1, Y))
+                signoflowerbound = sign(eulerforzero(params, itp, A, lbA1, Y))
 
                 # Require lower bound to be <= 0
                 if (signoflowerbound == 1.0) || (ubA1 - lbA1 < minCons)        # if liquidity constrained
-                    # TODO: why would a positive signoflowerbound indicate liq
-                    # constrained? (I understand the second part of this statement,
-                    # but not the first)
 
-                    # negV = objectivefunc(params, itp, lbA1, A, Y)
                     policyA1[ixt,ixA,ixY] = lbA1
 
                 else # if interior solution
 
                     # Require the upper bound and lower bound to be different signs
-                    signofupperbound = sign( eulerforzero(params, EdU1_at_A1, A, ubA1, Y) )
+                    signofupperbound = sign( eulerforzero(params, itp, A, ubA1, Y) )
                     if (signoflowerbound*signofupperbound == 1.0)
-                        # TODO why would this indicate a bug?
+                        # CRRA satisfies inada conditions so this should never happen
                         error("Sign of lower bound and upperbound are the same - no solution to Euler equation. Bug likely")
                     end
 
-                    ############################################################
-                    ## Root finding option 1: use the Roots package.
-                    ############################################################
-                    # Problem with the Roots package: Bisection does not allow you to set the tolerance
-                    # function ee(A1::Float64)
-                    #     eulerforzero(params, EdU1_at_A1, A, A1, Y)
-                    # end
-                    # policyA1[ixt, ixA, ixY] = find_zero( ee, [lbA1, ubA1], Bisection())
-
-                    ############################################################
-                    ## Root finding option 2: custom bisection function
-                    ############################################################
-                    # New version of bisection -> now i can control tolerance
+                    ## Root finding: custom bisection function
                     function ee(A1::Float64)
-                        eulerforzero(params, EdU1_at_A1, A, A1, Y)
+                        eulerforzero(params, itp, A, A1, Y)
                     end
-                    policyA1[ixt, ixA, ixY] = bisection64_custom(ee, lbA1, ubA1, 0.001)
+                    policyA1[ixt, ixA, ixY] = bisection64_custom(ee, lbA1, ubA1, params["tol"])
 
-                    ############################################################
-                    ## Root finding option 3: custom bisection function, with argument passed directly
-                    ############################################################
-                    # Same as bisection64_custom, but now i pass args directly
-                    # NOTE: seems it doesnt make any difference
-                    # policyA1[ixt, ixA, ixY] = bisection64_with_args(eulerforzero_rearrange, lbA1, ubA1, 0.001, (params, EdU1_at_A1, A, Y))
-
-                end # if (ubA1 - lbA1 < minCons)
+                end # interior solution
 
                 # Store solution and its value
                 policyC[ixt, ixA, ixY] = A + Y - policyA1[ixt, ixA, ixY]/(1+r)
                 dU[ixt, ixA, ixY]      = getmargutility( params, policyC[ixt, ixA, ixY] )
 
                 if saveValue_inEE
-                    # Save value function as well (not strictly necessary if i do simulation using policy functions)
+                    # Save value function as well (not necessary for solution but might be wanted for e.g. welfare calcs)
                     EV1              = EV[ixt + 1,:, ixY] # relevant section of EV matrix (in assets tomorrow)
-                    knots_x          = (Agrid1,)
-                    itp              = interpolate(knots_x, EV1, Gridded(Linear()))
-                    V[ixt, ixA, ixY] = utility(params, policyC[ixt, ixA, ixY]) + params["beta"] * itp[ policyA1[ixt,ixA,ixY] ]
+                    itpEV1              = interpolate(nodes, EV1, Gridded(Linear()))
+                    V[ixt, ixA, ixY] = -objectivefunc(params, itpEV1, policyA1[ixt,ixA,ixY], A, Y)
                 end
             end #ixY
 
@@ -169,46 +143,11 @@ function solveEulerEquation(params::Dict{String,Float64}, Agrid, Ygrid, incTrans
 
         end #ixA
 
-        if ixt % 10 == 0
+        #if ixt % 10 == 0
             println("Passed period $ixt of $T.")
-        end
+        #end
     end #ixt
 
     return policyA1, policyC, V, EV, dU, EdU
 end
 
-# I pass in the args to f for speed, as suggested here:
-# https://mmas.github.io/bisection-method-julia
-function bisection64_with_args(f, a::Float64, b::Float64, tol::Float64, args=()::Tuple )
-
-    if a > b
-        b,a = a, b
-    end
-
-    m = _middle(a,b)
-    fa, fb = sign(f(a, args...)), sign(f(b, args...))
-
-    fa * fb > 0 && throw(ArgumentError(bracketing_error))
-    (iszero(fa) || isnan(fa) || isinf(fa)) && return a
-    (iszero(fb) || isnan(fb) || isinf(fb)) && return b
-
-    while a < m < b
-        f_val = f(m, args...)
-        fm = sign(f_val)
-        # println("m = $m and f_val = $f_val")
-
-        if (abs(f_val) < tol) || iszero(fm) || isnan(fm) || isinf(fm)
-            return m
-        elseif fa * fm < 0
-            b,fb=m,fm
-        else
-            a,fa=m,fm
-        end
-        m = _middle(a,b)
-    end
-    return m
-end
-
-function eulerforzero_rearrange(A1::Float64, params::Dict{String,Float64}, EdU1_at_A1, A0::Float64, Y::Float64)
-    eulerforzero(params, EdU1_at_A1, A0, A1, Y)
-end
