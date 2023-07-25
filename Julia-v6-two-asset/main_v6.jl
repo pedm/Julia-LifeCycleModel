@@ -21,7 +21,7 @@ import Random.seed!
 ################################################################################
 
 # true or fale
-runparallel = false
+runparallel = true
 
 ################################################################################
 ## Load dependencies
@@ -63,7 +63,8 @@ const Tretire              = 45                  # Age at which retirement happe
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 9                   # number of points in the income grid
-const numPointsA           = 100                  # number of points in the discretised asset grid
+const numPointsA           = 50                  # number of points in the discretised asset grid
+const numPointsB           = 40                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
@@ -79,12 +80,22 @@ const linearise            = true               # Whether to linearise the slope
 # Get income grid
 Ygrid, incTransitionMrx, minInc, maxInc = getIncomeGrid(params)
 
-# Get asset grid
+# Get liquid asset grid
 MinAss, MaxAss = getMinAndMaxAss(params, minInc, maxInc)
 Agrid = zeros(T+1, numPointsA)
 for ixt = 1:1:T+1
     Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
 end
+
+# Get illqiuid asset grid
+Bgrid = zeros(T+1, numPointsB)
+for ixt = 1:1:T+1
+    Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsB, gridMethod)
+end
+
+# for k in 1:3, j in 1:3, i in 1:3
+#     @show (i, j, k)
+# end
 
 ################################################################################
 ## Solve
@@ -99,7 +110,7 @@ elseif runparallel == false
     @time policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
 else
     println("Solve Value Function: Parallel")
-    @time policyA1, policyC, V, EV  = solveValueFunctionPar(params, Agrid, Ygrid, incTransitionMrx)
+    @time policyA1, policyC, V, EV  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
 end
 
 # NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
@@ -108,7 +119,7 @@ end
 ## Simulate
 ################################################################################
 
-cpath, apath, vpath, ypath = simWithUncer(params, Agrid, Ygrid, policyA1, EV)
+cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, EV)
 
 ################################################################################
 ## Plot
