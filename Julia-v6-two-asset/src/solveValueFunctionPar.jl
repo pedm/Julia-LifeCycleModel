@@ -8,24 +8,31 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
     # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS ZEROS
 
     # Matrices to hold the policy and value functions
-    V_inner  = zeros(T+1, numPointsA, numPointsB, numPointsY)
-    V        = zeros(T+1, numPointsA, numPointsB, numPointsY)
-    policyA1_inner = zeros(T,   numPointsA, numPointsB, numPointsY)
-    policyA1 = zeros(T,   numPointsA, numPointsB, numPointsY)
-    policyC_inner  = zeros(T,   numPointsA, numPointsB, numPointsY)
-    policyC  = zeros(T,   numPointsA, numPointsB, numPointsY)
+    V_NA  = zeros(T+1, numPointsA, numPointsB, numPointsY) # Value fcn if not adjusting illiquid asset 
+    V     = zeros(T+1, numPointsA, numPointsB, numPointsY)
+    policyA1_NA = zeros(T,   numPointsA, numPointsB, numPointsY) # Policy fcn A1 if not adjusting illiquid asset
+    policyA1    = zeros(T,   numPointsA, numPointsB, numPointsY)
+    policyB1    = zeros(T,   numPointsA, numPointsB, numPointsY)
+    policyC_NA  = zeros(T,   numPointsA, numPointsB, numPointsY) # Policy fcn C if not adjusting illiquid asset
+    policyC     = zeros(T,   numPointsA, numPointsB, numPointsY)
+
+    policyAdj     = zeros(T,   numPointsA, numPointsB, numPointsY)
 
     # Matrices to hold expected value and marginal utility functions
     EV  = zeros(T+1, numPointsA, numPointsB,numPointsY);
 
     # Liquid assets just before consumption 
-    Lgrid = zeros(size(Agrid))
+    # Lgrid = zeros(size(Agrid))
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
-    V_inner[T + 1, :, :, :] .= 0 # value function conditional on not adjusting illiquid assets
+    V_NA[T + 1, :, :, :] .= 0 # value function conditional on not adjusting illiquid assets
     V[T + 1, :, :, :] .= 0       # value function with the adjustment
     EV[T + 1, :, :, :] .= 0      # expected value - the "post decision value function"
+
+    # Allow astargrid to go negative
+    # getGrid(minongrid, maxongrid, GridPoints, method)
+    astar_negs = getGrid(-params["max_contrib"], 0.0, 10, "equalsteps")[1:end-1]
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
@@ -33,6 +40,13 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
     for ixt=T:-1:1                                # Loop from time T-1 to 1
         Agrid1 = Agrid[ixt + 1, :]                # The grid on assets tomorrow
+
+        # TODO: need to define Astargrid over all potential middle-of-period liquid asset options -- then loop over that in stage 1
+        # Then use this for interpolation in stage 2
+        # Astargrid = Agrid[ixt, :] # for now, use this simple grid... later will need to allow it to go negative, if we have fixed adj cost
+        # TODO: do i need to allow this to go negative?
+        Astargrid = [astar_negs; Agrid[ixt, :]] # for now, use this simple grid... later will need to allow it to go negative, if we have fixed adj cost
+        # println(Astargrid)
 
         # STEP 1. Inner problem: solve for consumption assuming that the household does not adjust illiquid assets
         # ---------------------------------------------------------
@@ -48,15 +62,17 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                 for ixA0 = 1:numPointsA               # points on liq asset grid
 
                     # Value of income and information for optimisation
-                    A0    = Agrid[ixt, ixA0]            # assets today
-                    Y0    = Ygrid[ixt, ixY]            # income today
-                    lbA1 = Agrid[ixt + 1, 1]          # lower bound: assets tomorrow
+                    A0    = Astargrid[ixA0]             # middle-of-period liquid assets
+                    Y0    = Ygrid[ixt, ixY]             # income today
+                    lbA1 = Agrid[ixt + 1, 1]            # lower bound: assets tomorrow
                     ubA1 = (A0 + Y0 - minCons)*(1.0+r)  # upper bound: assets tomorrow
+
+                    # TODO: is ubA1 still accurate when we have the illiquid adjustment????
 
                     # Compute solution
                     if (ubA1 - lbA1 < minCons)        # if liquidity constrained
                         negV = objectivefunc(params, itp, lbA1, A0, Y0)
-                        policyA1_inner[ixt,ixA0,ixB0,ixY] = lbA1
+                        policyA1_NA[ixt,ixA0,ixB0,ixY] = lbA1
                     else
                         # Find the A1 that minimizes the objective function
 
@@ -65,47 +81,192 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                             return objectivefunc(params, itp, A1, A0, Y0)
                         end
                         Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
-                        policyA1_inner[ixt,ixA0,ixB0,ixY] = Res.minimizer
+                        policyA1_NA[ixt,ixA0,ixB0,ixY] = Res.minimizer
                         negV = Res.minimum     # if interior solution
                     end # if (ubA1 - lbA1 < minCons)
 
                     # Store solution and its value
-                    policyC_inner[ixt, ixA0, ixB0, ixY] = A0 + Y0 - policyA1_inner[ixt, ixA0, ixB0, ixY]/(1.0+r)
+                    policyC_NA[ixt, ixA0, ixB0, ixY] = A0 + Y0 - policyA1_NA[ixt, ixA0, ixB0, ixY]/(1.0+r)
                     # todo: policy fcn for deposit = 0 in this case 
-                    V_inner[ixt, ixA0, ixB0, ixY]       = -negV
+                    V_NA[ixt, ixA0, ixB0, ixY]       = -negV
                 end #ixA0
             end #ixY
         end # ixB0
 
-        # Basically the above gives V_inner = V^{NA}(ixt, ixA0, ixB0, ixY) which assumes no adjustment of illiquid asset
+        # The above gives V_NA(ixt, ixA0, ixB0, ixY) which assumes no adjustment of illiquid asset
         # Next step: find the optimal deposit d into the illiquid asset
 
-        # STEP 2. Outer problem to find optimal deposit function
-        # Will have to interpoate V_inner over Lgrid and Bgrid 
-        
+        # STEP 2. Outer problem to find optimal illqiuid assets
+        # Will have to interpoate V_NA over Lgrid and Bgrid 
+
+
         # Create Lgrid given ixB0 and ixY
         # Works because in the inner problem: a = l - c => can rearrange so that l = a + c       
-        # Lgrid = Agrid + policyC_inner[ixt, :, ixB0, ixY]
+        # Lgrid = Agrid + policyC_NA[ixt, :, ixB0, ixY]
         # But wait.... ixB0 can change?
-        # I guess can loop over ixB0 and ixY, then for each create Lgrid, then interpolate V_inner on Lgrid and Bgrid
+        # I guess can loop over ixB0 and ixY, then for each create Lgrid, then interpolate V_NA on Lgrid and Bgrid
 
-        # Threads.@threads for ixB0 = 1:1:numPointsB       # points on illiq asset grid
-        #     for ixY = 1:numPointsY                      # points on income grid
-        #         Lgrid = Agrid + policyC_inner[ixt, :, ixB0, ixY]
+        # STEP 2. Outer problem to find optimal illqiuid assets
+        # ---------------------------------------------------------
+        # Threads.@threads 
+        for ixB0 = 1:1:numPointsB       # points on illiq asset grid
+            for ixY = 1:numPointsY                       # points on income grid
+                for ixA0 = 1:numPointsA               # points on liq asset grid
 
-        #     end #ixY
-        # end # ixB0
+                    # define interpolation function over V_NA (as a function of middle-of-period liquid assets = a_star in Seb Graves language)
+                    nodes = (Astargrid,)
+                    V_NA_slice  = V_NA[ixt, :, ixB0, ixY]         # relevant section of EV matrix (in assets tomorrow)
+                    itp_V_NA = interpolate(nodes, V_NA_slice, Gridded(Linear()))
+
+                    A0     = Agrid[ixt, ixA0]            # start-of-period liquid assets
+                    B0     = Bgrid[ixt, ixB0]            # start-of-period illiq. assets
+                    Y0     = Ygrid[ixt, ixY]             # income today
+
+                    # Define a_star as middle-of-period liquid assets (i.e. what you have after adjusting your illiquid assets)
+                    function a_star(B1) # middle-of-period liquid assets
+                        # TODO: am I right to use params["R_a_over_R_b"] here?
+                        return A0 + params["R_a_over_R_b"]*(B0 - B1) - transaction_costs(B1, B0) 
+                    end
+
+                    # define obj fcn (Seb Graves' Vtilde)
+                    function Vtilde_obj(B1::Float64)
+                        a_middle_of_period = a_star(B1)
+                        # if a_middle_of_period < 0
+                        #     println(B1)
+                        #     println(B0)
+                        #     println(a_middle_of_period)
+                        #     error("too low")
+                        # end
+                        try
+                            return itp_V_NA(a_middle_of_period)
+                        catch 
+                            println("found issue")
+                            println(B1)
+                            println(a_middle_of_period)
+                            println(nodes)
+                            println(V_NA_slice)
+                            return itp_V_NA(a_middle_of_period)
+                        end
+                    end
+
+                    # Next step: choose B1 to get optimal Vtilde(B1) subject to constraints
+
+                    # Choose upper and lower bound for illiquid assets tomorrow
+                    lbB1     = Bgrid[ixt + 1, 1]            # NOTE: later might want to only allow a certain amount of withdrawal
+                    ubB1_max = B0*(1.0 + params["r_b"]) + min(params["max_contrib"], (A0 + Y0 - minCons)*(1.0+r)) # current illiquid assets plus max contribution or total liq resources, whichever is smaller
+                    # ubB1_max = B0*(1.0 + params["r_b"]) + (A0 + Y0 - minCons)*(1.0+r) # current illiquid assets plus total liq resources
+                    # NOTE: or better to put the constraint afterwards? like, first do the uncon problem for B1, then impose constraints? dunno 
+
+                    if (ubB1_max - lbB1 < minCons)        # issue - look into this!
+                        println(ubB1_max)
+                        println(lbB1)
+                        error("some issue where ubB1_max < lbB1... why?")
+                    end
+
+                    # println( (lbB1, B0, ubB1_max) )
+                    # println( (a_star(lbB1), a_star(B0), a_star(ubB1_max)) )
+                    # println("")
+
+                    # Sometimes the discreteness of the adjustment cost means that a_star(lbB1) < 0
+                    # In that case, don't allow them to withdraw from their retirement account
+                    if a_star(lbB1) < 0
+                        lbB1 = B0 
+                    end
+
+
+                    # if a_star(lbB1) * a_star(ubB1_max) >= 0
+                    #     println("ISSUE")
+                    #     println(lbB1)
+                    #     println( a_star(lbB1) )
+                    #     println(ubB1_max)
+                    #     println( a_star(ubB1_max) )
+
+                    #     B1opts = collect(lbB1:.01:ubB1_max)
+                    #     println( B1opts )
+                    #     println( [a_star(b1) for b1 in B1opts] )
+                    # end
+
+                    # Find ubB1: the max illiquid assets such that a_star >= zero
+                    # ubB1 = find_zero(a_star, (lbB1, ubB1_max), Bisection())
+                    ubB1 = ubB1_max
+                    # Note that a_star is decreasing in B1, if above B0, as putting more into retirement means less in liquid
+                    # That said, a_star may decrease just below B0 due to the adjustment cost
+
+                    # TODO: might want to have some cap on retirement contributions each period, no? 
+                    # TODO: there is probably a much cleaner way to do this analytically, no?
+
+                    # Maybe better: a_star of zero -> back out B1 -> make that the max -> then see if that's larger than max contribution / max assets
+                    # But wait... why do we need to ensure that a_star is zero? Should we not allow a_star to go negative??
+
+                    
+                    if a_star(ubB1) < 0
+                        println("this will be an issue")
+                        error("ugh")
+                    end
+
+                    if isapprox(ubB1, lbB1)
+                        # IF UNABLE TO ADJUST: just set equal to lbB1
+                        policyB1[ixt,ixA0,ixB0,ixY]       = lbB1
+                        V[ixt, ixA0, ixB0, ixY]           = V_NA[ixt, ixA0, ixB0, ixY]
+                        policyA1[ixt,ixA0,ixB0,ixY]       = policyA1_NA[ixt, ixA0, ixB0, ixY]
+                        
+                    elseif (ubB1 - lbB1 < minCons)        # issue - look into this!
+                        # IF ubB1 is less than lbB1... werid... 
+
+                        println(ixt)
+                        println(A0)
+                        println(B0) 
+                        println(Y0)
+
+                        println(ubB1)
+                        println(lbB1)
+                        println(a_star(ubB1))
+                        println(a_star(lbB1))
+                        println(minCons)
+                        error("some issue where ubB1 < lbB1... why?")
+                    else
+                        # IF ABLE TO ADJUST
+                        # NOTE: here we always assume interior solution... not sure if that's true
+                        try
+                            Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
+                        catch 
+                            b1s = collect(lbB1:10.0:ubB1)
+                            a_stars = [a_star(b1) for b1 in b1s]
+                            println(b1s)
+                            println(a_stars)
+                            plot(b1s, a_stars)
+                            gui()
+
+                            Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
+                        end
+                        Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
+                        policyB1[ixt,ixA0,ixB0,ixY]   = Res.minimizer
+                        V[ixt, ixA0, ixB0, ixY]       = Res.minimum     
+                        policyAdj[ixt, ixA0, ixB0, ixY] = 1.0
+
+                        # Interpolate over policy function for liquid assets assuming no adjustment of B1
+                        # define interpolation function over V_NA (as a function of middle-of-period liquid assets = a_star in Seb Graves language)
+                        policyA1_NA_slice  = policyA1_NA[ixt, :, ixB0, ixY]         # relevant section of EV matrix (in assets tomorrow)
+                        itp_policyA1_NA = interpolate(nodes, policyA1_NA_slice, Gridded(Linear()))
+                        
+                        # Set A1 policy fcn based on chosen B1 and the mapping from B1->A*->A1
+                        policyA1[ixt,ixA0,ixB0,ixY] = itp_policyA1_NA( a_star( policyB1[ixt,ixA0,ixB0,ixY] ) ) # See bottom of page 5 from Seb Graves notes
+                    end
+                end #ixA0
+            end #ixY
+        end # ixB0
 
         # Notes from Jeppe: 
         # m_t+1 = R * a_t + y_t+1
 
         # Or easier for VFI:
-        # interpolate V_inner over Agrid and Bgrid
+        # interpolate V_NA over Agrid and Bgrid
         # Then use the fact that a = beg period liq assets + whatever you extract - deposits
 
-        V[ixt, :, :, :] = V_inner[ixt, :, :, :]
-        policyC[ixt, :, :, :] = policyC_inner[ixt, :, :, :]
-        policyA1[ixt, :, :, :] = policyA1_inner[ixt, :, :, :]
+        # IFF NOT DOING STEP 2
+        # V[ixt, :, :, :] = V_NA[ixt, :, :, :]
+        # policyC[ixt, :, :, :] = policyC_NA[ixt, :, :, :]
+        # policyA1[ixt, :, :, :] = policyA1_NA[ixt, :, :, :]
 
         # STEP 3. integrate out income today conditional on income yesterday to get EV and EdU
         # "Post Decision Value Function" in the words of Jeppe 
@@ -121,10 +282,10 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
         # println(V[ixt,:])
         # println(policyC[ixt, :])
-        if ixt % 10 == 0
+        # if ixt % 10 == 0
             println("Passed period $ixt of $T.")
-        end
+        # end
     end #ixt
 
-    return policyA1, policyC, V, EV
+    return policyA1, policyB1, policyC, V, EV, policyAdj
 end

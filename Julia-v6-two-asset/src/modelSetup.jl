@@ -5,6 +5,7 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # Initialise the output matrices
        BC   = zeros(T+1,1)
        maxA = zeros(T+1,1)
+       maxB = zeros(T+1,1)
 
     ## ------------------------------------------------------------------------
     # Iteratively, calculate the borrowing constraints, and maximum on asset
@@ -25,7 +26,17 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # HARD CODE ZEROS for BC = minAss
     # BC = zeros(size(BC))
 
-    # Maximum Assets
+    # Maximum illiquid assets
+    maxB[1] = 0.1 # arbitrary. just have this to prevent the first period grid being all zeros
+    for ixt = 2:1:T+1
+        maxB[ixt] = (maxB[ixt - 1] + params["max_contrib"] ) * (1 + params["r_b"])      
+    end
+
+    if params["r"] > params["r_b"]
+        error("current grid setup won't support these params")
+    end
+
+    # Maximum Liquid Assets
     maxA[1] = params["startA"]
     # If starting assets are 0 we will have maxA<=0 in period 1 and BC>0.
     # Therefore BC>maxA (minA<maxA). Ensure that this is not the case by
@@ -36,17 +47,23 @@ function getMinAndMaxAss(params, minInc, maxInc)
         maxA[1] = BC[1] + 1
     end
     for ixt = 2:1:T+1
-        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1 + params["r"])      
-        
+        # Original version: one asset
+        # maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1 + params["r"])      
+
+        # Updated version: two asset, one with higher return (assume that the agent return maximizes, so makes maximum contribution to liquid... 
+        # then later add on maxB to capture the possibility that they withdraw all that period)
+        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] - params["max_contrib"] ) * (1 + params["r"])      
+
         if maxA[ixt] <= BC[ixt]
           maxA[ixt] = BC[ixt] + 1
         end
-
     end
 
+    # Now allow for the possiblity that you extract everything from their retirment account to liquid account (again all under assumption that you get higher returns on retirement account)
+    maxA = maxA .+ maxB
 
 
-    return BC, maxA
+    return BC, maxA, maxB
 end
 
 function getGrid(minongrid, maxongrid, GridPoints, method)
@@ -147,13 +164,13 @@ elseif isUncertainty == 1
     #----------------------------------------#
 
     if Tretire == 0         # no work (retired at birth)
-       Ygrid[:, :] .= 0
-       minInc[:, :] .= 0
-       maxInc[:, :] .= 0
+       Ygrid[:, :] .= 0.1
+       minInc[:, :] .= 0.1
+       maxInc[:, :] .= 0.1
     elseif (Tretire > 0) && (Tretire <=T)  #retire at some age
-        Ygrid[Tretire:T, :] .= 0
-        minInc[Tretire:T, :] .= 0
-        maxInc[Tretire:T, :] .= 0
+        Ygrid[Tretire:T, :] .= 0.1
+        minInc[Tretire:T, :] .= 0.1
+        maxInc[Tretire:T, :] .= 0.1
     end
 
     return Ygrid, Q, minInc, maxInc

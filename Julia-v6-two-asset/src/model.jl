@@ -33,3 +33,16 @@ end
     value = - value
     return value
 end
+
+@everywhere function transaction_costs(B1, B0)
+
+    # Most realistic: Only have a fee if withdrawing:
+    # TODO: maybe later: want to have some subsidy to contributions
+    if isapprox(B0, B1) 
+        return 0.0
+    elseif B1 < B0
+        return params["adj_cost_fixed"] + params["adj_cost_prop"] * abs(B1 - B0) # TODO: might not need that abs()
+    else
+        return 0.0
+    end
+end

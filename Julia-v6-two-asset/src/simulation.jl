@@ -1,45 +1,6 @@
 
-function simNoUncer(params, Agrid, Ygrid, policyA1,V)
 
-    ## ------------------------------------------------------------------------
-    # Define parameters
-    r       = params["r"]
-    startA  = params["startA"]
-
-    # Initialise arrays that will hold the paths of income consumption, value
-    # and assets
-
-    # Arguments for output
-    c = zeros(T, 1)            # consumption
-    v = zeros(T, 1)            # value
-    a = zeros(T + 1,1)         # this is the path at the start of each period, so we include the 'start' of death
-    y = zeros(T, 1)            # income
-
-    ## ------------------------------------------------------------------------
-    # Obtain paths using the initial condition and the policy and value
-    # functions
-    #-------------------------------------------------------------------------#
-    a[1, 1] = startA
-    for t = 1:1:T                     # loop through time periods for a particular individual
-        
-        # interpolate value function
-        knots_x = (Agrid[t, :],)
-        itp = interpolate(knots_x, V[t, :], Gridded(Linear()))
-        v[t  , 1]   = itp[ a[t, 1] ]
-
-        # interpolate the policy function
-        knots_x = (Agrid[t, :],)
-        itp_assets  = interpolate(knots_x, policyA1[t, :], Gridded(Linear()))
-        a[t+1, 1]   = itp_assets[ a[t, 1] ]
-
-        # fill in income and consumption
-        y[t,   1]   = Ygrid[t];
-        c[t  , 1]   = a[t, 1] + y[t, 1] - (a[t+1, 1]/(1+r))
-    end   #t
-    return c, a, v, y
-end
-
-function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, EV)
+function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
     # (policyA1,EV,startA)
 
     # This function takes the policy functions and value functions, along with
@@ -104,20 +65,27 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, EV)
 #-------------------------------------------------------------------------##
      for s = 1:1: numSims
         a[1, s] = startA;
-        b[1, s] = 1.0; # for some odd reason, it doesnt work if i set to zero.... b/c Bgrid doesn't go all the way down to zero, i think.
+        b[1, s] = 0.0; # for some odd reason, it doesnt work if i set to zero.... b/c Bgrid doesn't go all the way down to zero, i think.
 
          for t = 1:1:T                              # loop through time periods for a particular individual
+            println(t)
 
             if (t < Tretire)                       # first for the before retirement periods
                 tA1 = policyA1[t, :, :, :];  # the relevant part of the policy function
+                tB1 = policyB1[t, :, :, :];  # the relevant part of the policy function
                 tV  = EV[t, :, :, :];         # the relevant part of the value function
 
                 knots_x = (Agrid[t, :], Bgrid[t, :], Ygrid[t, :])
                 
                 # interpolate policy function, instructing to linearly extrapolate outside of bounds (can happen for income)
-                itp = interpolate(knots_x, tA1, Gridded(Linear()))
-                etp = extrapolate(itp,Line())
-                a[t+1, s] = etp(a[t, s], b[t,s], y[t, s])
+                # TODO: look into why it has extrapolation... not sure why this would happen!
+                itp_A = interpolate(knots_x, tA1, Gridded(Linear()))
+                etp_A = extrapolate(itp_A,Line())
+                a[t+1, s] = etp_A(a[t, s], b[t,s], y[t, s])
+
+                itp_B = interpolate(knots_x, tB1, Gridded(Linear()))
+                etp_B = extrapolate(itp_B,Line())
+                b[t+1, s] = etp_B(a[t, s], b[t,s], y[t, s])
 
                 # interpolate value function
                 itp_V = interpolate(knots_x, tV, Gridded(Linear()))
@@ -126,17 +94,25 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, EV)
 
             else                          # next for the post retirement periods
                 tA1 = policyA1[t, :, :, 1];  # the relevant part of the policy function
+                tB1 = policyB1[t, :, :, 1];  # the relevant part of the policy function
                 tV = EV[t, :, :, 1];         # the relevant part of the value function
 
                 knots_x = (Agrid[t, :],Bgrid[t,:],)
 
                 # interpolate policy function
-                itp = interpolate(knots_x, tA1, Gridded(Linear()))
-                a[t+1, s] = itp(a[t, s], b[t,s])
+                itp_A = interpolate(knots_x, tA1, Gridded(Linear()))
+                itp_B = interpolate(knots_x, tB1, Gridded(Linear()))
+
+                etp_A = extrapolate(itp_A,Line())
+                etp_B = extrapolate(itp_B,Line())
+                
+                a[t+1, s] = etp_A(a[t, s], b[t,s])
+                b[t+1, s] = etp_B(a[t, s], b[t,s])
                 
                 # interpolate value function
                 itp_V = interpolate(knots_x, tV, Gridded(Linear()))
-                v[t, s] = itp_V(a[t, s], b[t,s])
+                etp_V = extrapolate(itp_V,Line())
+                v[t, s] = etp_V(a[t, s], b[t,s])
 
             end # if (t < Tretire)
 
@@ -148,8 +124,9 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, EV)
 
             # Get consumption from today's assets, today's income and
             # tomorrow's optimal assets
-            c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r));
-            b[t+1, s] = b[t, s] # TODO: make this later...
+            c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(b[t+1, s], b[t, s]) 
+            # TODO: need to adjust illiquid assets too!!!!
+
         end   #t
     end # s
 

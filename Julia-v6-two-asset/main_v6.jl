@@ -48,6 +48,8 @@ params                     = Dict{String, Float64}()
 params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
 params["r"]                = 1.0/0.98 - 1.0      # Interest rate
+params["r_b"]              = params["r"] + 0.02      # Interest rate
+
 params["beta"]             = 0.98                # 1/(1+r) # Discount factor
 params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
 params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
@@ -55,6 +57,14 @@ params["startA"]           = 0.0                 # How much asset do people star
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
+params["adj_cost_fixed"]   = 0.0                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
+params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
+params["max_contrib"]      = 0.5                 # maximum contribution to retirement account each period (arbitrary)
+
+# Simplifications (to define somewhere else automatically)
+params["R_a_over_R_b"] = (1.0+params["r"]) / (1.0+params["r_b"])
+
+
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option
@@ -62,9 +72,9 @@ const T                    = 60                  # Number of time period
 const Tretire              = 45                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 9                   # number of points in the income grid
-const numPointsA           = 50                  # number of points in the discretised asset grid
-const numPointsB           = 40                  # number of points in the discretised asset grid
+const numPointsY           = 3                   # number of points in the income grid
+const numPointsA           = 30                  # number of points in the discretised asset grid
+const numPointsB           = 20                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 10                  # How many individuals to simulate
@@ -80,18 +90,16 @@ const linearise            = true               # Whether to linearise the slope
 # Get income grid
 Ygrid, incTransitionMrx, minInc, maxInc = getIncomeGrid(params)
 
-# Get liquid asset grid
-MinAss, MaxAss = getMinAndMaxAss(params, minInc, maxInc)
+# Get asset grids
+MinAss, MaxAss, MaxB = getMinAndMaxAss(params, minInc, maxInc)
 Agrid = zeros(T+1, numPointsA)
-for ixt = 1:1:T+1
-    Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
-end
-
-# Get illqiuid asset grid
 Bgrid = zeros(T+1, numPointsB)
 for ixt = 1:1:T+1
-    Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsB, gridMethod)
+    Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
+    Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxB[ixt], numPointsB, gridMethod)
 end
+
+
 
 # for k in 1:3, j in 1:3, i in 1:3
 #     @show (i, j, k)
@@ -110,7 +118,7 @@ elseif runparallel == false
     @time policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
 else
     println("Solve Value Function: Parallel")
-    @time policyA1, policyC, V, EV  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
+    @time policyA1, policyB1, policyC, V, EV, policyAdj  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
 end
 
 # NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
@@ -119,14 +127,40 @@ end
 ## Simulate
 ################################################################################
 
-cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, EV)
+cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
 ################################################################################
 ## Plot
 ################################################################################
 
-# Plot example
+# Plot Life Cycle Profile for Indiv 1
 plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2, label = "Consumption")
-plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2, label="Assets")
+plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2, label="Liq Assets")
+plot!([1:length(bpath[:, 1])], bpath[:,1], linewidth = 2, label="Illiq Assets")
 plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income")
 
+# Plot Policy Fcn
+ixt = 5
+ixY = 3
+plot(Agrid[ixt,:], policyA1[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy A1", xlabel="A0") # weird: illiq assets has no affect on A1 - so clearly the issue is in solution not sim
+# plot(Agrid[ixt,:], policyA1[ixt, :, 5, :], ylabel="Policy A1", xlabel="A0") # in contrast, income has a clear effect on A1
+
+plot(Agrid[ixt,:], policyC[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy C", xlabel="A0") # Not really defined.
+plot(Agrid[ixt,:], policyB1[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy B1", xlabel="A0")
+
+
+plot(Agrid[ixt,:], policyAdj[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy Adjust", xlabel="A0")
+
+plot(Agrid[ixt,:], EV[ixt, :, 1:5:numPointsB, ixY], ylabel="EV", xlabel="A0")
+# QUESITON: why no curviture here!?!?
+
+plot(Agrid[ixt,:], EV[ixt, :, 1, ixY], ylabel="EV", xlabel="A0")
+
+
+plot(Bgrid[ixt,:], policyB1[ixt, 1, :, ixY], ylabel="Policy B1", xlabel="B0") # literally a 45 degree line --- so seems the noadjust case is always winning? dunno
+
+
+# TODO: look at value function given B... does it have curviture?
+
+# Note that hhs start off life with B = 1... so no wonder it stays fixed at that level forever.
+# Seems issue in solution method, since policy fcns make no sense
