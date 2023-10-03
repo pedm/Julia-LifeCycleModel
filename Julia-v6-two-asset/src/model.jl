@@ -22,7 +22,8 @@ end
     # r = params["r"]
 
     # cons = A0 + Y - (A1)/(1 + params["r"])
-    cons = ((1 + params["r"])*A0) + Y - A1 - params["r_b"] * B0
+    # cons = ((1 + params["r"])*A0) + Y - A1 - params["r_b"] * B0
+    cons = ((1.0 + params["r"])*A0) + Y - A1 + params["r_b"] * B0
     value = utility(params, cons) + params["beta"] * itp[A1, B0]
     # value = utility(params, cons) + params["beta"] * itp[A1]
 
@@ -46,7 +47,7 @@ end
 
     if isapprox(B1_default, B1) | (ixt >= Tretire)
         return 0.0
-    elseif B1 < B1_default
+    elseif B1 < B0 # B1_default
         early_withdrawal = abs(B1 - B1_default) # TODO: might not need that abs()
         return params["adj_cost_fixed"] + params["adj_cost_prop"] * early_withdrawal 
     else

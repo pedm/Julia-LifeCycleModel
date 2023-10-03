@@ -47,8 +47,8 @@ include("src/simulation.jl")
 params                     = Dict{String, Float64}()
 params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
-# params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-params["r_b"]              = 0.05
+params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
+# params["r_b"]              = 0.05
 params["r"]                = 0.001      # Interest rate
 
 params["beta"]             = 0.98                # 1/(1+r) # Discount factor
@@ -57,12 +57,12 @@ params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
 params["startA"]           = 0.0                 # How much asset do people start life with
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
-# params["sigma"]            = 0.01                # variance of innovations to log income
+params["sigma"]            = 0.05                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
 params["adj_cost_fixed"]   = 0.0                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-params["adj_cost_prop"]    = 0.0                 # proportional cost to adjust the illiquid asset
-params["max_contrib"]      = 0.5                 # maximum contribution to retirement account each period (arbitrary)
+params["adj_cost_prop"]    = 0.5                 # proportional cost to adjust the illiquid asset
+params["max_contrib"]      = 1.0                 # maximum contribution to retirement account each period (arbitrary)
 params["Yretire"]          = 0.05
 
 # Constants
@@ -143,9 +143,9 @@ plot(Agrid[ixt,:], policyA1[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy A1", xl
 
 
 ### POLICY FCNS FOR B1
-plot(Agrid[ixt,:], policyB1[ixt, :, 1, ixY], ylabel="Policy B1", xlabel="A0", title="Policy Fcn B1")
-plot(Bgrid[ixt,:], policyB1[ixt, 1, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1")
-plot(Bgrid[ixt,:], policyB1[ixt, 10, :, ixY], ylabel="Policy B1", xlabel="B0") 
+plot(Agrid[ixt,:], policyB1[ixt, :, 1, ixY],  ylabel="Policy B1", xlabel="A0", title="Policy Fcn B1")
+plot(Bgrid[ixt,:], policyB1[ixt, 1, :, ixY],  ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1")
+plot(Bgrid[ixt,:], policyB1[ixt, 10, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1") 
 
 # plot(Agrid[ixt,:], policyAdj[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy Adjust", xlabel="A0")
 
@@ -157,7 +157,14 @@ plot(Agrid[ixt,:], EV[ixt, :, 1:5:numPointsB, ixY], ylabel="EV", xlabel="A0")
 plot(Agrid[ixt,:], EV[ixt, :, 1, ixY],              ylabel="EV", xlabel="A0")
 plot(Bgrid[ixt,:], EV[ixt, 1, :, ixY],             ylabel="EV", xlabel="B0")
 
+### V_NA PLOTS
+plot(1:length(V_NA[ixt, :, 1, ixY]), V_NA[ixt, :, 1, ixY],              ylabel="V_NA", xlabel="A0")
+plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY],             ylabel="V_NA", xlabel="B0")
 
+# SHIT! Still opposite direction of what we would expect....
+
+
+# surf(collect(1:length(V_NA[ixt, :, 1, ixY])), Bgrid[ixt,:], V_NA[ixt, :, :, ixY],              ylabel="V_NA", xlabel="A0")
 
 
 # TODO: look at value function given B... does it have curviture?
@@ -169,8 +176,21 @@ plot(Bgrid[ixt,:], EV[ixt, 1, :, ixY],             ylabel="EV", xlabel="B0")
 plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2, label = "Consumption")
 plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2, label="Liq Assets")
 plot!([1:length(bpath[:, 1])], bpath[:,1], linewidth = 2, label="Illiq Assets")
-plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income")
+plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income", xlabel="Age")
 
 
-plot(1:length(V_NA[ixt, :, 1, ixY]), V_NA[ixt, :, 1, ixY],              ylabel="V_NA", xlabel="A0")
-plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY],             ylabel="V_NA", xlabel="B0")
+# Plot Life Cycle Profile for Indiv 1
+plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2, label = "Consumption")
+plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2, label="Liq Assets")
+plot!([1:length(bpath[:, 1])], bpath[:,1], linewidth = 2, label="Illiq Assets")
+plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (HH 1)")
+
+
+cpath_mean = mean(cpath, dims = 2)
+apath_mean = mean(apath, dims = 2)
+bpath_mean = mean(bpath, dims = 2)
+ypath_mean = mean(ypath, dims = 2)
+plot([1:length(cpath[:, 1])],  cpath_mean,linewidth = 2, label = "Consumption")
+plot!([1:length(apath[:, 1])], apath_mean, linewidth = 2, label="Liq Assets")
+plot!([1:length(bpath[:, 1])], bpath_mean, linewidth = 2, label="Illiq Assets")
+plot!([1:length(ypath[:, 1])], ypath_mean,linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (Avg)")
