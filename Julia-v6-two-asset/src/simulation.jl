@@ -124,7 +124,7 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
             # Get consumption from today's assets, today's income and
             # tomorrow's optimal assets
-            c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(b[t+1, s], b[t, s]) 
+            c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(t, b[t+1, s], b[t, s]) 
             # TODO: need to adjust illiquid assets too!!!!
 
         end   #t

@@ -1,20 +1,31 @@
 function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid, incTransitionMrx)
     # Define params
-    minCons    = params["minCons"]
-    r          = params["r"]
+    minCons     = params["minCons"]
+    r           = params["r"]
+    r_b         = params["r_b"]
+    max_contrib = params["max_contrib"]
+    
+    # Simplifications (to define somewhere else automatically)
+    R_a = 1.0+r
+    R_b = 1.0+r_b
+    R_b_over_R_a =  R_b / R_a
+    R_a_over_R_b =  R_a / R_b
+    numPointsAstar = numPointsA + 4 # depends on extra grid points added to allow Astar to go negative
 
     # will need to think of V1 and Agrid1
     ## ------------------------------------------------------------------------
     # GENERATE MATRICES TO STORE NUMERICAL APPROXIMATIONS AND INITIATE AS ZEROS
 
     # Matrices to hold the policy and value functions
-    V_NA  = zeros(T+1, numPointsA, numPointsB, numPointsY) # Value fcn if not adjusting illiquid asset 
     V     = zeros(T+1, numPointsA, numPointsB, numPointsY)
-    policyA1_NA = zeros(T,   numPointsA, numPointsB, numPointsY) # Policy fcn A1 if not adjusting illiquid asset
     policyA1    = zeros(T,   numPointsA, numPointsB, numPointsY)
     policyB1    = zeros(T,   numPointsA, numPointsB, numPointsY)
-    policyC_NA  = zeros(T,   numPointsA, numPointsB, numPointsY) # Policy fcn C if not adjusting illiquid asset
     policyC     = zeros(T,   numPointsA, numPointsB, numPointsY)
+
+    # Objects to store things from the first stage "no adjust" solution (solving for liquid choice holding illiquid fixed)
+    V_NA        = zeros(T+1, numPointsAstar, numPointsB, numPointsY) # Value fcn if not adjusting illiquid asset 
+    policyA1_NA = zeros(T,   numPointsAstar, numPointsB, numPointsY) # Policy fcn A1 if not adjusting illiquid asset
+    policyC_NA  = zeros(T,   numPointsAstar, numPointsB, numPointsY) # Policy fcn C if not adjusting illiquid asset
 
     policyAdj     = zeros(T,   numPointsA, numPointsB, numPointsY)
 
@@ -32,7 +43,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
     # Allow astargrid to go negative
     # getGrid(minongrid, maxongrid, GridPoints, method)
-    astar_negs = getGrid(-params["max_contrib"], 0.0, 10, "equalsteps")[1:end-1]
+    # astar_negs = getGrid(-max_contrib, 0.0, 10, "equalsteps")[1:end-1]
 
     ## ------------------------------------------------------------------------
     # SOLVE RECURSIVELY THE CONSUMER'S PROBLEM, STARTING AT TIME T-1 AND MOVING
@@ -45,11 +56,12 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
         # Then use this for interpolation in stage 2
         # Astargrid = Agrid[ixt, :] # for now, use this simple grid... later will need to allow it to go negative, if we have fixed adj cost
         # TODO: do i need to allow this to go negative?
-        Astargrid = [astar_negs; Agrid[ixt, :]] # for now, use this simple grid... later will need to allow it to go negative, if we have fixed adj cost
+        # Astargrid = [astar_negs; Agrid[ixt, :]] # for now, use this simple grid... later will need to allow it to go negative, if we have fixed adj cost
         # println(Astargrid)
 
         # STEP 1. Inner problem: solve for consumption assuming that the household does not adjust illiquid assets
         # ---------------------------------------------------------
+        println("Step 1")
         Threads.@threads for ixB0 = 1:1:numPointsB      # points on illiq asset grid
             for ixY = 1:numPointsY                      # points on income grid
 
@@ -57,13 +69,21 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                 nodes = (Agrid1,)
                 EV1  = EV[ixt + 1, :, ixB0, ixY]         # relevant section of EV matrix (in assets tomorrow)
                 itp = interpolate(nodes, EV1, Gridded(Linear()))
+                # WARNING: currently I'm selecting B1 using ixB0... but the grid changes from one period to the next (!) so this doesn't actually maintain the same exact B1 = B0 !!!!
+                # TODO: might need to do a 2D interpolation here!!! 
+                
+                # Set astar_negs: IMPORTANT MUST BE SAME IN STAGE 1 AND STAGE 2 -- better to put this code elsewhere - though it does depend on Y0
+                Y0              = Ygrid[ixt, ixY]                                    # income today
+                astar_min_uncon = (minCons-Y0) / R_a 
+                astar_min       = max(astar_min_uncon, -max_contrib)
+                astar_negs      = getGrid(astar_min, 0.0, 5, "equalsteps")[1:end-1]
+                Astargrid       = [astar_negs; Agrid[ixt, :]] 
                 
                 # maybe better to define Lgrid here and then loop over ixL0
-                for ixA0 = 1:numPointsA               # points on liq asset grid
+                for ixA0 = 1:numPointsAstar               # points on liq asset grid
 
                     # Value of income and information for optimisation
                     A0    = Astargrid[ixA0]             # middle-of-period liquid assets
-                    Y0    = Ygrid[ixt, ixY]             # income today
                     lbA1 = Agrid[ixt + 1, 1]            # lower bound: assets tomorrow
                     ubA1 = (A0 + Y0 - minCons)*(1.0+r)  # upper bound: assets tomorrow
 
@@ -106,13 +126,22 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
         # But wait.... ixB0 can change?
         # I guess can loop over ixB0 and ixY, then for each create Lgrid, then interpolate V_NA on Lgrid and Bgrid
 
+        println("Step 2")
         # STEP 2. Outer problem to find optimal illqiuid assets
         # ---------------------------------------------------------
         # Threads.@threads 
         for ixB0 = 1:1:numPointsB       # points on illiq asset grid
             for ixY = 1:numPointsY                       # points on income grid
-                for ixA0 = 1:numPointsA               # points on liq asset grid
 
+                # Set astar_negs: IMPORTANT MUST BE SAME IN STAGE 1 AND STAGE 2 -- better to put this code elsewhere - though it does depend on Y0
+                # BE VERY CAREFUL CHANGING THIS CODE SINCE IT SHOWS UP TWICE - AND FIX THIS LATER
+                Y0              = Ygrid[ixt, ixY]                                    # income today
+                astar_min_uncon = (minCons-Y0) / R_a 
+                astar_min       = max(astar_min_uncon, -max_contrib)
+                astar_negs      = getGrid(astar_min, 0.0, 5, "equalsteps")[1:end-1]
+                Astargrid       = [astar_negs; Agrid[ixt, :]] 
+                                
+                for ixA0 = 1:numPointsA               # points on liq asset grid
                     # define interpolation function over V_NA (as a function of middle-of-period liquid assets = a_star in Seb Graves language)
                     nodes = (Astargrid,)
                     V_NA_slice  = V_NA[ixt, :, ixB0, ixY]         # relevant section of EV matrix (in assets tomorrow)
@@ -124,8 +153,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                     # Define a_star as middle-of-period liquid assets (i.e. what you have after adjusting your illiquid assets)
                     function a_star(B1) # middle-of-period liquid assets
-                        # TODO: am I right to use params["R_a_over_R_b"] here?
-                        return A0 + params["R_a_over_R_b"]*(B0 - B1) - transaction_costs(B1, B0) 
+                        return A0 + R_b_over_R_a*(B0 - B1) - ( transaction_costs(ixt, B1, B0) / R_a )
                     end
 
                     # define obj fcn (Seb Graves' Vtilde)
@@ -186,9 +214,14 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                     #     println( [a_star(b1) for b1 in B1opts] )
                     # end
 
+                    # Find B1_overbar using analytical solution 
+                    # Designed to ensure that astar >= astar_min which in turn ensures that A1_NA >= 0 and C_NA > 0 
+                    B1_overbar = R_a_over_R_b * (A0 - astar_min) + B0 
+
+
                     # Find ubB1: the max illiquid assets such that a_star >= zero
                     # ubB1 = find_zero(a_star, (lbB1, ubB1_max), Bisection())
-                    ubB1 = ubB1_max
+                    ubB1 = min(ubB1_max, B1_overbar)
                     # Note that a_star is decreasing in B1, if above B0, as putting more into retirement means less in liquid
                     # That said, a_star may decrease just below B0 due to the adjustment cost
 
@@ -199,7 +232,16 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                     # But wait... why do we need to ensure that a_star is zero? Should we not allow a_star to go negative??
 
                     
-                    if a_star(ubB1) < 0
+                    if a_star(ubB1) + 0.000000001 < minimum(Astargrid)
+                        println(ubB1)
+                        println(a_star(ubB1))
+                        println(astar_min)
+
+                        println([A0, B0, Y0])
+                        println([ubB1_max, B1_overbar])
+
+                        println(Astargrid)
+
                         println("this will be an issue")
                         error("ugh")
                     end
@@ -227,6 +269,8 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                     else
                         # IF ABLE TO ADJUST
                         # NOTE: here we always assume interior solution... not sure if that's true
+                        println([A0, B0, Y0, lbB1, ubB1, a_star(ubB1), maximum(Astargrid), a_star(ubB1) > maximum(Astargrid)])
+
                         try
                             Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
                         catch 

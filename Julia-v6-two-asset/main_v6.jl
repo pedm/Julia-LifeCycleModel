@@ -61,10 +61,6 @@ params["adj_cost_fixed"]   = 0.0                 # fixed cost to adjust the illi
 params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
 params["max_contrib"]      = 0.5                 # maximum contribution to retirement account each period (arbitrary)
 
-# Simplifications (to define somewhere else automatically)
-params["R_a_over_R_b"] = (1.0+params["r"]) / (1.0+params["r_b"])
-
-
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option
