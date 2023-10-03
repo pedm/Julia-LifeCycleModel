@@ -164,13 +164,13 @@ elseif isUncertainty == 1
     #----------------------------------------#
 
     if Tretire == 0         # no work (retired at birth)
-       Ygrid[:, :] .= 0.1
-       minInc[:, :] .= 0.1
-       maxInc[:, :] .= 0.1
+       Ygrid[:, :] .= params["Yretire"]
+       minInc[:, :] .= params["Yretire"]
+       maxInc[:, :] .= params["Yretire"]
     elseif (Tretire > 0) && (Tretire <=T)  #retire at some age
-        Ygrid[Tretire:T, :] .= 0.1
-        minInc[Tretire:T, :] .= 0.1
-        maxInc[Tretire:T, :] .= 0.1
+        Ygrid[Tretire:T, :] .= params["Yretire"]
+        minInc[Tretire:T, :] .= params["Yretire"]
+        maxInc[Tretire:T, :] .= params["Yretire"]
     end
 
     return Ygrid, Q, minInc, maxInc

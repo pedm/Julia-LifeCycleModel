@@ -9,7 +9,7 @@
     end
 end
 
-@everywhere function objectivefunc(params::Dict{String,Float64}, itp, A1::Float64, A0::Float64, Y::Float64)
+@everywhere function objectivefunc(params::Dict{String,Float64}, itp, A1::Float64, A0::Float64, Y::Float64, B0::Float64)
 
     #-------------------------------------------------------------------------------#
     # This function returns the following quantity:
@@ -21,8 +21,10 @@ end
     # beta = params["beta"]
     # r = params["r"]
 
-    cons = A0 + Y - (A1)/(1 + params["r"])
-    value = utility(params, cons) + params["beta"] * itp[A1]
+    # cons = A0 + Y - (A1)/(1 + params["r"])
+    cons = ((1 + params["r"])*A0) + Y - A1 - params["r_b"] * B0
+    value = utility(params, cons) + params["beta"] * itp[A1, B0]
+    # value = utility(params, cons) + params["beta"] * itp[A1]
 
     ## ------------------------------------------------------------------------
     #The optimisation routine that we will use searches for the minimum of the

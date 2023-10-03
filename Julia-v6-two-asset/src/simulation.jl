@@ -55,7 +55,7 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             end # if (t ~= T)
 
             if (t >= Tretire) # set income to zero if the individual has retired
-                    y[t, s] = 0
+                    y[t, s] = params["Yretire"]
             end # if (t >= Tretire)
        end # t
     end # s
@@ -68,7 +68,6 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
         b[1, s] = 0.0; # for some odd reason, it doesnt work if i set to zero.... b/c Bgrid doesn't go all the way down to zero, i think.
 
          for t = 1:1:T                              # loop through time periods for a particular individual
-            println(t)
 
             if (t < Tretire)                       # first for the before retirement periods
                 tA1 = policyA1[t, :, :, :];  # the relevant part of the policy function
@@ -124,8 +123,8 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
             # Get consumption from today's assets, today's income and
             # tomorrow's optimal assets
-            c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(t, b[t+1, s], b[t, s]) 
-            # TODO: need to adjust illiquid assets too!!!!
+            # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(t, b[t+1, s], b[t, s]) 
+            c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(t, b[t+1, s], b[t, s]) 
 
         end   #t
     end # s
