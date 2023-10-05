@@ -49,7 +49,7 @@ params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
 params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
 # params["r_b"]              = 0.05
-params["r"]                = 0.001      # Interest rate
+params["r"]                = 0.01      # Interest rate
 
 params["beta"]             = 0.98                # 1/(1+r) # Discount factor
 params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
@@ -57,27 +57,27 @@ params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
 params["startA"]           = 0.0                 # How much asset do people start life with
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
-params["sigma"]            = 0.05                # variance of innovations to log income
+# params["sigma"]            = 0.05                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
-params["adj_cost_fixed"]   = 0.0                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
+params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
 params["adj_cost_prop"]    = 0.5                 # proportional cost to adjust the illiquid asset
-params["max_contrib"]      = 1.0                 # maximum contribution to retirement account each period (arbitrary)
-params["Yretire"]          = 0.05
+params["max_contrib"]      = 0.5                 # maximum contribution to retirement account each period (arbitrary)
+params["Yretire"]          = 0.1
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option
-# const T                    = 60                  # Number of time period
-# const Tretire              = 45                  # Age at which retirement happens
-const T                    = 6                  # Number of time period
-const Tretire              = 4                  # Age at which retirement happensconst borrowingAllowed     = 0                   # allow borrowing
+const T                    = 60                  # Number of time period
+const Tretire              = 45                  # Age at which retirement happens
+# const T                    = 6                  # Number of time period
+# const Tretire              = 4                  # Age at which retirement happensconst borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 3                   # number of points in the income grid
 const numPointsA           = 50                  # number of points in the discretised asset grid
 const numPointsB           = 40                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
-const numSims              = 10                  # How many individuals to simulate
+const numSims              = 500                  # How many individuals to simulate
 const useEulerEquation     = false               # Solve the model using the euler equation?
 const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 const linearise            = true               # Whether to linearise the slope of EdU when using EE
@@ -180,10 +180,10 @@ plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income", xlabe
 
 
 # Plot Life Cycle Profile for Indiv 1
-plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2, label = "Consumption")
-plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2, label="Liq Assets")
-plot!([1:length(bpath[:, 1])], bpath[:,1], linewidth = 2, label="Illiq Assets")
-plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (HH 1)")
+plot([1:length(cpath[:,  1])], cpath[:,2],linewidth = 2, label = "Consumption")
+plot!([1:length(apath[:, 1])], apath[:,2], linewidth = 2, label="Liq Assets")
+plot!([1:length(bpath[:, 1])], bpath[:,2], linewidth = 2, label="Illiq Assets")
+plot!([1:length(ypath[:, 1])], ypath[:,2],linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (HH 1)")
 
 
 cpath_mean = mean(cpath, dims = 2)
