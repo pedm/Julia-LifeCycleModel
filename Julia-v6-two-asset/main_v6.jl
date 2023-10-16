@@ -70,7 +70,8 @@ const interpMethod         = "linear"            # for now, I only allow linear 
 const T                    = 60                  # Number of time period
 const Tretire              = 45                  # Age at which retirement happens
 # const T                    = 6                  # Number of time period
-# const Tretire              = 4                  # Age at which retirement happensconst borrowingAllowed     = 0                   # allow borrowing
+# const Tretire              = 4                  # Age at which retirement happens
+const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 3                   # number of points in the income grid
 const numPointsA           = 50                  # number of points in the discretised asset grid
