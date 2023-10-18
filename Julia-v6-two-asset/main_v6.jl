@@ -1,9 +1,9 @@
 ## Simple Life Cycle Model of Consumption and Savings
-## Based off of matlab code by Monica Costa Dias and Cormac O'Dea
 
 # Model v1: finite consumption saving endowment problem
 # Model v3: add deterministic income stream
 # Model v5: realistic income uncertainty
+# Model v6: liquid and illiquid assets
 
 # This code was written in Julia v0.6.2 in September 2017.
 # Updated for Julia v1.8 in April 2023.
@@ -13,14 +13,14 @@
 ## Load packages
 ################################################################################
 
-using Distributed, Interpolations, QuadGK, Optim, Roots, LinearAlgebra, Random, Plots
+using Distributed, Interpolations, QuadGK, Optim, Roots, LinearAlgebra, Random, Plots, Statistics
 import Random.seed!
 
 ################################################################################
 ## Run multi-threaded or not
 ################################################################################
 
-# true or fale
+# true or false
 runparallel = true
 
 ################################################################################
@@ -48,8 +48,9 @@ params                     = Dict{String, Float64}()
 params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
 params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-# params["r_b"]              = 0.05
-params["r"]                = 0.01      # Interest rate
+params["r_b"]              = 0.05
+params["r"]                = 0.005      # Interest rate
+# params["r"] = params["r_b"] 
 
 params["beta"]             = 0.98                # 1/(1+r) # Discount factor
 params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
@@ -62,27 +63,33 @@ params["rho"]              = 0.75                # persistency of log income
 params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
 params["adj_cost_prop"]    = 0.5                 # proportional cost to adjust the illiquid asset
-params["max_contrib"]      = 0.5                 # maximum contribution to retirement account each period (arbitrary)
+params["max_contrib"]      = 40.0                 # maximum contribution to retirement account each period (arbitrary)
 params["Yretire"]          = 0.1
+
+params["adj_cost_fixed"]   = 0.0
+params["adj_cost_prop"]    = 0.0
+
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option
-const T                    = 60                  # Number of time period
-const Tretire              = 45                  # Age at which retirement happens
+# const T                    = 60                  # Number of time period
+# const Tretire              = 45                  # Age at which retirement happens
+const T                    = 20                  # Number of time period
+const Tretire              = 15                  # Age at which retirement happens
 # const T                    = 6                  # Number of time period
 # const Tretire              = 4                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 3                   # number of points in the income grid
 const numPointsA           = 50                  # number of points in the discretised asset grid
-const numPointsB           = 40                  # number of points in the discretised asset grid
+const numPointsB           = 50                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 500                  # How many individuals to simulate
 const useEulerEquation     = false               # Solve the model using the euler equation?
 const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 const linearise            = true               # Whether to linearise the slope of EdU when using EE
-
+const extrap_sim           = true
 
 ################################################################################
 ## Setup Model
@@ -100,7 +107,7 @@ for ixt = 1:1:T+1
     Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxB[ixt], numPointsB, gridMethod)
 end
 
-
+Bgrid = Agrid 
 
 # for k in 1:3, j in 1:3, i in 1:3
 #     @show (i, j, k)
@@ -138,7 +145,7 @@ cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, po
 # Plot Policy Fcn
 ixt = T-1
 # ixt = 2
-# ixY = 3
+ixY = 3
 plot(Agrid[ixt,:], policyA1[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy A1", xlabel="A0") # weird: illiq assets has no affect on A1 - so clearly the issue is in solution not sim
 # plot(Agrid[ixt,:], policyA1[ixt, :, 5, :], ylabel="Policy A1", xlabel="A0") # in contrast, income has a clear effect on A1
 
@@ -158,12 +165,17 @@ plot(Agrid[ixt,:], EV[ixt, :, 1:5:numPointsB, ixY], ylabel="EV", xlabel="A0")
 plot(Agrid[ixt,:], EV[ixt, :, 1, ixY],              ylabel="EV", xlabel="A0")
 plot(Bgrid[ixt,:], EV[ixt, 1, :, ixY],             ylabel="EV", xlabel="B0")
 
+# Compare EV of A and B
+ixt = 3
+plot(Agrid[ixt,:], EV[ixt, :, 1, ixY],              ylabel="EV", label = "EV given A0 (and B0 = 0)", xlabel="A0")
+plot!(Bgrid[ixt,:], EV[ixt, 1, :, ixY],             ylabel="EV", label = "EV given B0 (and A0 = 0)", xlabel="A0 / B0")
+
+
 ### V_NA PLOTS
-plot(1:length(V_NA[ixt, :, 1, ixY]), V_NA[ixt, :, 1, ixY],              ylabel="V_NA", xlabel="A0")
-plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY],             ylabel="V_NA", xlabel="B0")
-
+plot(1:length(V_NA[ixt, :, 1, ixY]), V_NA[ixt, :, 1, ixY],    ylabel="V_NA", xlabel="A0")
+plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY],                      ylabel="V_NA", xlabel="B0")
 # SHIT! Still opposite direction of what we would expect....
-
+# TODO: why does that go in the opposite direction?
 
 # surf(collect(1:length(V_NA[ixt, :, 1, ixY])), Bgrid[ixt,:], V_NA[ixt, :, :, ixY],              ylabel="V_NA", xlabel="A0")
 
@@ -173,25 +185,38 @@ plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY],             ylabel="V_NA", xlabel="B0")
 # Note that hhs start off life with B = 1... so no wonder it stays fixed at that level forever.
 # Seems issue in solution method, since policy fcns make no sense
 
-# Plot Life Cycle Profile for Indiv 1
-plot([1:length(cpath[:, 1])], cpath[:,1],linewidth = 2, label = "Consumption")
-plot!([1:length(apath[:, 1])], apath[:,1], linewidth = 2, label="Liq Assets")
-plot!([1:length(bpath[:, 1])], bpath[:,1], linewidth = 2, label="Illiq Assets")
-plot!([1:length(ypath[:, 1])], ypath[:,1],linewidth = 2, label = "Income", xlabel="Age")
+# Plot Life Cycle Profile for 3 HHs
+for ixHH = 1:3
+    plt = plot([1:length(cpath[:,  1])], cpath[:, ixHH],linewidth = 2, label = "Consumption")
+    plt = plot!([1:length(apath[:, 1])], apath[:, ixHH], linewidth = 2, label="Liq Assets")
+    plt = plot!([1:length(bpath[:, 1])], bpath[:, ixHH], linewidth = 2, label="Illiq Assets")
+    plt = plot!([1:length(ypath[:, 1])], ypath[:, ixHH],linewidth = 2, label = "Income", xlabel="Age", title="Household "*string(ixHH))
+    display(plt)
+end
 
-
-# Plot Life Cycle Profile for Indiv 1
-plot([1:length(cpath[:,  1])], cpath[:,2],linewidth = 2, label = "Consumption")
-plot!([1:length(apath[:, 1])], apath[:,2], linewidth = 2, label="Liq Assets")
-plot!([1:length(bpath[:, 1])], bpath[:,2], linewidth = 2, label="Illiq Assets")
-plot!([1:length(ypath[:, 1])], ypath[:,2],linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (HH 1)")
-
-
+# Plot Average Life Cycle Profiles
 cpath_mean = mean(cpath, dims = 2)
 apath_mean = mean(apath, dims = 2)
 bpath_mean = mean(bpath, dims = 2)
 ypath_mean = mean(ypath, dims = 2)
-plot([1:length(cpath[:, 1])],  cpath_mean,linewidth = 2, label = "Consumption")
-plot!([1:length(apath[:, 1])], apath_mean, linewidth = 2, label="Liq Assets")
-plot!([1:length(bpath[:, 1])], bpath_mean, linewidth = 2, label="Illiq Assets")
-plot!([1:length(ypath[:, 1])], ypath_mean,linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (Avg)")
+plot( [1:length(cpath[:, 1])], cpath_mean, linewidth = 2, label = "Consumption")
+plot!([1:length(apath[:, 1])], apath_mean, linewidth = 2, label = "Liq Assets")
+plot!([1:length(bpath[:, 1])], bpath_mean, linewidth = 2, label = "Illiq Assets")
+plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlabel="Age", title = "Life-Cycle Profile (Average)")
+
+
+
+# Things to test:
+# 1. If r = r_b, and there are adj costs, then ppl should only save in liquid
+# 2. If no adjustment costs, and r_b > r, then ppl should only save in illiquid
+
+
+# Q: is the issue the sim or solution? 
+# Whats up with this max in bpath for so many households? it seems to level out at some point... odd
+# how often does it extrapolate?
+# Q: why is minimum(bpath) negative !? 
+
+# DONE - Maybe I could try bounding y within the Ygrid - then turn off extrapolation in simulation method - seems issue not caused by this!
+# Maybe I should turn off extrapolation in the solution?
+
+# minimum(bpath)

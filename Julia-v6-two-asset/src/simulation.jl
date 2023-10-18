@@ -54,80 +54,109 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
                 y[t+1, s] = exp( ly[t+1, s] );
             end # if (t ~= T)
 
-            if (t >= Tretire) # set income to zero if the individual has retired
-                    y[t, s] = params["Yretire"]
+            if (t >= Tretire) 
+                y[t, s] = params["Yretire"]
             end # if (t >= Tretire)
+
+            # Bound income if not extrapolating
+            if !extrap_sim
+                y[t, s] = truncate_custom(y[t, s], Ygrid[t,1], Ygrid[t,end])
+            end
        end # t
     end # s
 
-## ------------------------------------------------------------------------
-# Obtain consumption, asset and value profiles
-#-------------------------------------------------------------------------##
-     for s = 1:1: numSims
+    ## ------------------------------------------------------------------------
+    # Obtain consumption, asset and value profiles
+    #-------------------------------------------------------------------------##
+
+    # Initial values
+    for s = 1:1: numSims
         a[1, s] = startA;
-        b[1, s] = 0.0; # for some odd reason, it doesnt work if i set to zero.... b/c Bgrid doesn't go all the way down to zero, i think.
+        b[1, s] = 0.0; 
+    end
 
-         for t = 1:1:T                              # loop through time periods for a particular individual
+    for t = 1:1:T
 
-            if (t < Tretire)                       # first for the before retirement periods
-                tA1 = policyA1[t, :, :, :];  # the relevant part of the policy function
-                tB1 = policyB1[t, :, :, :];  # the relevant part of the policy function
-                tV  = EV[t, :, :, :];         # the relevant part of the value function
+        # (1) Define interpolation / extrapolation functions
+        if (t < Tretire)                       
 
-                knots_x = (Agrid[t, :], Bgrid[t, :], Ygrid[t, :])
-                
-                # interpolate policy function, instructing to linearly extrapolate outside of bounds (can happen for income)
-                # TODO: look into why it has extrapolation... not sure why this would happen!
-                itp_A = interpolate(knots_x, tA1, Gridded(Linear()))
-                etp_A = extrapolate(itp_A,Line())
-                a[t+1, s] = etp_A(a[t, s], b[t,s], y[t, s])
+            # Define interpolation functions
+            tA1 = policyA1[t, :, :, :];        # the relevant part of the liquid policy function
+            tB1 = policyB1[t, :, :, :];        # the relevant part of the illiquid policy function
+            tV  = EV[t, :, :, :];              # the relevant part of the value function
 
-                itp_B = interpolate(knots_x, tB1, Gridded(Linear()))
-                etp_B = extrapolate(itp_B,Line())
-                b[t+1, s] = etp_B(a[t, s], b[t,s], y[t, s])
-
-                # interpolate value function
-                itp_V = interpolate(knots_x, tV, Gridded(Linear()))
-                etp_V = extrapolate(itp_V,Line())
-                v[t, s] = etp_V(a[t, s], b[t,s], y[t, s])
-
-            else                          # next for the post retirement periods
-                tA1 = policyA1[t, :, :, 1];  # the relevant part of the policy function
-                tB1 = policyB1[t, :, :, 1];  # the relevant part of the policy function
-                tV = EV[t, :, :, 1];         # the relevant part of the value function
-
-                knots_x = (Agrid[t, :],Bgrid[t,:],)
-
-                # interpolate policy function
+            knots_x = (Agrid[t, :], Bgrid[t, :], Ygrid[t, :])
+            
+            if extrap_sim
+                # interpolate policy function, instructing to linearly extrapolate outside of bounds (can happen for income)            
                 itp_A = interpolate(knots_x, tA1, Gridded(Linear()))
                 itp_B = interpolate(knots_x, tB1, Gridded(Linear()))
-
-                etp_A = extrapolate(itp_A,Line())
-                etp_B = extrapolate(itp_B,Line())
-                
-                a[t+1, s] = etp_A(a[t, s], b[t,s])
-                b[t+1, s] = etp_B(a[t, s], b[t,s])
-                
-                # interpolate value function
                 itp_V = interpolate(knots_x, tV, Gridded(Linear()))
-                etp_V = extrapolate(itp_V,Line())
-                v[t, s] = etp_V(a[t, s], b[t,s])
 
+                policyA1_fcn = extrapolate(itp_A,Line())
+                policyB1_fcn = extrapolate(itp_B,Line())
+                EV_fcn = extrapolate(itp_V,Line())
+            else 
+                # interpolate only
+                policyA1_fcn = interpolate(knots_x, tA1, Gridded(Linear()))
+                policyB1_fcn = interpolate(knots_x, tB1, Gridded(Linear()))
+                EV_fcn       = interpolate(knots_x, tV, Gridded(Linear()))
+            end
+        else 
+            tA1 = policyA1[t, :, :, 1];  # the relevant part of the policy function
+            tB1 = policyB1[t, :, :, 1];  # the relevant part of the policy function
+            tV  = EV[t, :, :, 1];        # the relevant part of the value function
+
+            knots_x = (Agrid[t, :],Bgrid[t,:],)
+
+            if extrap_sim
+                itp_A = interpolate(knots_x, tA1, Gridded(Linear()))
+                itp_B = interpolate(knots_x, tB1, Gridded(Linear()))
+                itp_V = interpolate(knots_x, tV, Gridded(Linear()))
+
+                policyA1_fcn = extrapolate(itp_A,Line())
+                policyB1_fcn = extrapolate(itp_B,Line())
+                EV_fcn       = extrapolate(itp_V,Line())
+            else 
+                policyA1_fcn = interpolate(knots_x, tA1, Gridded(Linear()))
+                policyB1_fcn = interpolate(knots_x, tB1, Gridded(Linear()))
+                EV_fcn       = interpolate(knots_x, tV, Gridded(Linear()))
+            end
+        end 
+
+        # (2) Loop over all individuals using the above functions
+        for s = 1:1: numSims
+            if (t < Tretire) 
+                # Working-Age Policy Functions - depend on income
+                a[t+1, s] = policyA1_fcn(a[t, s], b[t,s], y[t, s])
+                b[t+1, s] = policyB1_fcn(a[t, s], b[t,s], y[t, s])
+                v[t, s] = EV_fcn(a[t, s], b[t,s], y[t, s])
+
+            else
+                # Retired Policy Functions - don't depend on income
+                a[t+1, s] = policyA1_fcn(a[t, s], b[t,s])
+                b[t+1, s] = policyB1_fcn(a[t, s], b[t,s])
+                v[t, s]   = EV_fcn(a[t, s], b[t,s])
             end # if (t < Tretire)
 
             # Check whether next period's asset is below the lowest
             # permissable
             if ( a[t+1, s] < Agrid[t+1, 1] )
-               a[t+1, s] = checkSimExtrap( Ygrid, Agrid[t+1, 1], y[t, s] );
+                println("Found a = $(a[t+1, s]) < 0 at time $t and sim $s given $(y[t,s])")
+                a[t+1, s] = checkSimExtrap( Ygrid, Agrid[t+1, 1], y[t, s] );
             end
 
-            # Get consumption from today's assets, today's income and
-            # tomorrow's optimal assets
+            if ( b[t+1, s] < Bgrid[t+1, 1] )
+                println("Found b = $(b[t+1, s]) < 0 at time $t and sim $s given $(y[t,s])")
+                b[t+1, s] = checkSimExtrap( Ygrid, Bgrid[t+1, 1], y[t, s] );
+            end
+
+            # Get consumption from today's assets, today's income and tomorrow's optimal assets
             # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(t, b[t+1, s], b[t, s]) 
             c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(t, b[t+1, s], b[t, s]) 
 
-        end   #t
-    end # s
+        end # s
+    end   #t
 
     return c, a, b, v, y
 end
