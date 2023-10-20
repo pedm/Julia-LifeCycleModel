@@ -48,8 +48,8 @@ params                     = Dict{String, Float64}()
 params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
 params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-params["r_b"]              = 0.05
-params["r"]                = 0.005      # Interest rate
+# params["r_b"]              = 0.03
+params["r"]                = 0.001      # Interest rate
 # params["r"] = params["r_b"] 
 
 params["beta"]             = 0.98                # 1/(1+r) # Discount factor
@@ -58,12 +58,13 @@ params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
 params["startA"]           = 0.0                 # How much asset do people start life with
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
-# params["sigma"]            = 0.05                # variance of innovations to log income
+# params["sigma"]            = 0.01                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
 params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
 params["adj_cost_prop"]    = 0.5                 # proportional cost to adjust the illiquid asset
-params["max_contrib"]      = 40.0                 # maximum contribution to retirement account each period (arbitrary)
+# params["max_contrib"]      = 40.0                 # maximum contribution to retirement account each period (arbitrary)
+params["max_contrib"]      = 5.0                 # maximum contribution to retirement account each period (arbitrary)
 params["Yretire"]          = 0.1
 
 params["adj_cost_fixed"]   = 0.0
@@ -74,10 +75,8 @@ params["adj_cost_prop"]    = 0.0
 const interpMethod         = "linear"            # for now, I only allow linear option
 # const T                    = 60                  # Number of time period
 # const Tretire              = 45                  # Age at which retirement happens
-const T                    = 20                  # Number of time period
-const Tretire              = 15                  # Age at which retirement happens
-# const T                    = 6                  # Number of time period
-# const Tretire              = 4                  # Age at which retirement happens
+const T                    = 10                  # Number of time period
+const Tretire              = 6                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 3                   # number of points in the income grid
@@ -166,19 +165,43 @@ plot(Agrid[ixt,:], EV[ixt, :, 1, ixY],              ylabel="EV", xlabel="A0")
 plot(Bgrid[ixt,:], EV[ixt, 1, :, ixY],             ylabel="EV", xlabel="B0")
 
 # Compare EV of A and B
-ixt = 3
+ixt = 5
 plot(Agrid[ixt,:], EV[ixt, :, 1, ixY],              ylabel="EV", label = "EV given A0 (and B0 = 0)", xlabel="A0")
 plot!(Bgrid[ixt,:], EV[ixt, 1, :, ixY],             ylabel="EV", label = "EV given B0 (and A0 = 0)", xlabel="A0 / B0")
 
 
-### V_NA PLOTS
-plot(1:length(V_NA[ixt, :, 1, ixY]), V_NA[ixt, :, 1, ixY],    ylabel="V_NA", xlabel="A0")
-plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY],                      ylabel="V_NA", xlabel="B0")
+### V_NA PLOTS conditinal on Astar
+ixt = 3
+plot(1:length(V_NA[ixt, :, 1, ixY]), V_NA[ixt, :, 1, ixY],      ylabel="V_NA", xlabel="Astar", label="ixB0 = 1")
+plot!(1:length(V_NA[ixt, :, 5, ixY]), V_NA[ixt, :, 1, ixY],     ylabel="V_NA", xlabel="Astar", label="ixB0 = 5")
+plot!(1:length(V_NA[ixt, :, 10, ixY]), V_NA[ixt, :, 1, ixY],    ylabel="V_NA", xlabel="Astar", label="ixB0 = 10")
+plot!(1:length(V_NA[ixt, :, end, ixY]), V_NA[ixt, :, 1, ixY],   ylabel="V_NA", xlabel="Astar", label="ixB0 = end")
+
+
+### V_NA PLOTS conditinal on Bgrid - aka illiquid assets assuming you don't adjust
+ixt = 3
+plt = plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 1")
+plt = plot!(Bgrid[ixt,:], V_NA[ixt, 2, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 2")
+plt = plot!(Bgrid[ixt,:], V_NA[ixt, 5, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 5")
+plt = plot!(Bgrid[ixt,:], V_NA[ixt, 10, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 10")
+display(plt)
+# seems this creates a weird effect where by far the highest V_NA is if you have very low B0.... why??
+# Normal looking if ixAstar = 1, aka negative Astar
+# TODO: why?
+# Seems to happen if max_contrib = 40.... but not if max_contrib=1. Strange! 
+
+# could keep trying to remove the extrapolation option from the solution method? dunno...
+
 # SHIT! Still opposite direction of what we would expect....
 # TODO: why does that go in the opposite direction?
 
 # surf(collect(1:length(V_NA[ixt, :, 1, ixY])), Bgrid[ixt,:], V_NA[ixt, :, :, ixY],              ylabel="V_NA", xlabel="A0")
 
+plot( maximum(bpath, dims = 2))
+plot!(minimum(bpath, dims = 2))
+
+plot( maximum(apath, dims = 2))
+plot!(minimum(apath, dims = 2))
 
 # TODO: look at value function given B... does it have curviture?
 
@@ -219,4 +242,7 @@ plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlab
 # DONE - Maybe I could try bounding y within the Ygrid - then turn off extrapolation in simulation method - seems issue not caused by this!
 # Maybe I should turn off extrapolation in the solution?
 
-# minimum(bpath)
+# TODO: why does value of holding B conditional on not adjusting go in the opposite direction of what i expect? or does this make sense? dunno 
+# TODO: perhaps put a cap on B1 holdings -- ensure that we're always on the A1star grid ?
+
+

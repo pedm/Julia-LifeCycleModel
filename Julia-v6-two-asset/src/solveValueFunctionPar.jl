@@ -25,15 +25,11 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
     # Objects to store things from the first stage "no adjust" solution (solving for liquid choice holding illiquid fixed)
     V_NA        = zeros(T+1, numPointsAstar, numPointsB, numPointsY) # Value fcn if not adjusting illiquid asset 
     policyA1_NA = zeros(T,   numPointsAstar, numPointsB, numPointsY) # Policy fcn A1 if not adjusting illiquid asset
-    policyC_NA  = zeros(T,   numPointsAstar, numPointsB, numPointsY) # Policy fcn C if not adjusting illiquid asset
 
     policyAdj     = zeros(T,   numPointsA, numPointsB, numPointsY)
 
     # Matrices to hold expected value and marginal utility functions
     EV  = zeros(T+1, numPointsA, numPointsB,numPointsY);
-
-    # Liquid assets just before consumption 
-    # Lgrid = zeros(size(Agrid))
 
     ## ------------------------------------------------------------------------
     #Set the terminal value function and expected value function to 0
@@ -93,9 +89,12 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                     # Value of income and information for optimisation
                     A0    = Astargrid[ixA0]             # middle-of-period liquid assets
-                    lbA1 = Agrid[ixt + 1, 1]            # lower bound: assets tomorrow
+                    lbA1  = Agrid[ixt + 1, 1]            # lower bound: assets tomorrow
                     # ubA1 = (A0 + Y0 - minCons)*(1.0+r)  # OLD: upper bound: assets tomorrow
-                    ubA1 = R_a*A0 + Y0 - r_b*B0 - minCons  # upper bound: assets tomorrow
+                    ubA1   = R_a*A0 + Y0 - r_b*B0 - minCons  # upper bound: assets tomorrow
+                    # ubA1 = R_a*A0 + Y0 + r_b*B0 - minCons  # upper bound: assets tomorrow
+                    # TODO: should the ubA1 have + or - before r_b? 
+                    # println("should the ubA1 have + or - before r_b?")
 
                     # TODO: is ubA1 still accurate when we have the illiquid adjustment????
 
@@ -105,7 +104,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                         
                         # println([lbA1, ubA1])
                         # negV = objectivefunc(params, itp, lbA1, A0, Y0, B0)
-                        negV = - utility(params, minCons) + params["beta"] * itp[lbA1, B0]
+                        negV = - ( utility(params, minCons) + params["beta"] * itp[lbA1, B0] )
                         policyA1_NA[ixt,ixA0,ixB0,ixY] = lbA1
                     else
                         # Find the A1 that minimizes the objective function
@@ -158,8 +157,8 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                 # Set astar_negs: IMPORTANT MUST BE SAME IN STAGE 1 AND STAGE 2 -- better to put this code elsewhere - though it does depend on Y0
                 # BE VERY CAREFUL CHANGING THIS CODE SINCE IT SHOWS UP TWICE - AND FIX THIS LATER
-                Y0              = Ygrid[ixt, ixY]                                    # income today
-                B0              = Bgrid[ixt, ixB0]            # start-of-period illiq. assets
+                Y0              = Ygrid[ixt, ixY]  # income today
+                B0              = Bgrid[ixt, ixB0] # start-of-period illiq. assets
                 astar_min_uncon = (minCons-Y0-r_b*B0) / R_a 
                 astar_min       = max(astar_min_uncon, -max_contrib)
                 astar_negs      = getGrid(astar_min, 0.0, 5, "equalsteps")[1:end-1]
@@ -330,7 +329,26 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                         itp_policyA1_NA = extrapolate(itp_policyA1_NA, Line()) # Added because sometimes astar can go below astar grid... but maybe we want to think about this more later...
 
                         # Set A1 policy fcn based on chosen B1 and the mapping from B1->A*->A1
-                        policyA1[ixt,ixA0,ixB0,ixY] = itp_policyA1_NA( a_star( policyB1[ixt,ixA0,ixB0,ixY] ), policyB1[ixt,ixA0,ixB0,ixY] ) # See bottom of page 5 from Seb Graves notes
+                        try
+                            policyA1[ixt,ixA0,ixB0,ixY] = itp_policyA1_NA( a_star( policyB1[ixt,ixA0,ixB0,ixY] ), policyB1[ixt,ixA0,ixB0,ixY] ) # See bottom of page 5 from Seb Graves notes
+                        catch
+                            println("Issue found:")
+                            println([ixt,ixA0,ixB0,ixY])
+                            println([ixt, A0, B0, Y0])
+                            println([lbB1, ubB1, Res.minimizer])
+                            println([a_star(lbB1), a_star(ubB1), a_star(Res.minimizer)])
+                            println("Im confused:")
+                            println( A0 + R_b_over_R_a*(B0 - Res.minimizer) )
+                            println( R_b_over_R_a*(B0 - Res.minimizer)  )
+                            println(Astargrid)
+                            policyA1[ixt,ixA0,ixB0,ixY] = itp_policyA1_NA( a_star( policyB1[ixt,ixA0,ixB0,ixY] ), policyB1[ixt,ixA0,ixB0,ixY] ) # See bottom of page 5 from Seb Graves notes
+
+                            # Going over astar grid -- this surprises me. i would have thought that if B1 = 0, then Astar = A0 should hold. But it doesnt!????
+                            # Oh it's because B0 = 0.01 and B1 = 0.0 -> thus we're over the max Astar grid. Shit. What to do about this? 
+                            # Hmmm why did it choose to extract in that case? Something to do with extrapolation above? Not sure. 
+                            # I guess the lbB1 is always just 0... as opposed to something that ensures we dont end up above the Agrid. 
+                            # Hmm conceptually, what should we do here? 
+                        end
                     end
                 end #ixA0
             end #ixY

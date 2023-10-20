@@ -31,7 +31,7 @@ end
     #The optimisation routine that we will use searches for the minimum of the
     #function. We want the maximum. So we multiply out function here by -1 so
     #that the optimiser will fill the minimum of the negative of our function,
-    #i.e. the maximum of our functino
+    #i.e. the maximum of our function
 
     value = - value
     return value
