@@ -47,28 +47,33 @@ include("src/simulation.jl")
 params                     = Dict{String, Float64}()
 params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
+
+# Returns
 params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-# params["r_b"]              = 0.03
+params["r_b"]              = 0.001
 params["r"]                = 0.001      # Interest rate
 # params["r"] = params["r_b"] 
 
+# Preferences 
 params["beta"]             = 0.98                # 1/(1+r) # Discount factor
 params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
 params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
 params["startA"]           = 0.0                 # How much asset do people start life with
+
+# Income process
 params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
 # params["sigma"]            = 0.01                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
-params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
+params["Yretire"]          = 0.5
+
+# Retirement account
+# params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-params["adj_cost_prop"]    = 0.5                 # proportional cost to adjust the illiquid asset
 # params["max_contrib"]      = 40.0                 # maximum contribution to retirement account each period (arbitrary)
 params["max_contrib"]      = 5.0                 # maximum contribution to retirement account each period (arbitrary)
-params["Yretire"]          = 0.1
-
 params["adj_cost_fixed"]   = 0.0
-params["adj_cost_prop"]    = 0.0
+params["adj_cost_prop"]    = 0.5
 
 
 # Constants
@@ -80,8 +85,8 @@ const Tretire              = 6                  # Age at which retirement happen
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 3                   # number of points in the income grid
-const numPointsA           = 50                  # number of points in the discretised asset grid
-const numPointsB           = 50                  # number of points in the discretised asset grid
+const numPointsA           = 30                  # number of points in the discretised asset grid
+const numPointsB           = 30                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 500                  # How many individuals to simulate
@@ -151,8 +156,15 @@ plot(Agrid[ixt,:], policyA1[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy A1", xl
 
 ### POLICY FCNS FOR B1
 plot(Agrid[ixt,:], policyB1[ixt, :, 1, ixY],  ylabel="Policy B1", xlabel="A0", title="Policy Fcn B1")
-plot(Bgrid[ixt,:], policyB1[ixt, 1, :, ixY],  ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1")
-plot(Bgrid[ixt,:], policyB1[ixt, 10, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1") 
+
+
+plot(Bgrid[ixt,:], policyB1[ixt, 1, :, ixY],  ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1",     label="ixA0 = 1")
+plot!(Bgrid[ixt,:], policyB1[ixt, 10, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1",    label="ixA0 = 10") 
+plot!(Bgrid[ixt,:], policyB1[ixt, end-1, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1", label="ixA0 = end-1") 
+plot!(Bgrid[ixt,:], policyB1[ixt, end, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1",   label="ixA0 = end") 
+# Weird that for the household with max liquid assets, they set B1 = 0... WHY?
+
+
 
 # plot(Agrid[ixt,:], policyAdj[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy Adjust", xlabel="A0")
 
@@ -200,6 +212,7 @@ display(plt)
 plot( maximum(bpath, dims = 2))
 plot!(minimum(bpath, dims = 2))
 
+
 plot( maximum(apath, dims = 2))
 plot!(minimum(apath, dims = 2))
 
@@ -246,3 +259,5 @@ plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlab
 # TODO: perhaps put a cap on B1 holdings -- ensure that we're always on the A1star grid ?
 
 
+# Maybe my issue comes from not keeping track of returns properly... seems sometimes i use end of period returns, othertimes start of period returns. Weird. 
+# Also wait... why would B0 affect your spending at all in the "no adjust" case? Wouldn't it be better if it just drops out entirely? Yes I think so.... gotta try that. 
