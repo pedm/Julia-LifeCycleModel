@@ -23,8 +23,8 @@ end
 
     # cons = A0 + Y - (A1)/(1 + params["r"])
     # cons = ((1 + params["r"])*A0) + Y - A1 - params["r_b"] * B0
-    cons = ((1.0 + params["r"])*A0) + Y - A1 + params["r_b"] * B0
-    value = utility(params, cons) + params["beta"] * itp[A1, B0]
+    cons = ((1.0 + params["r"])*A0) + Y - A1 
+    value = utility(params, cons) + params["beta"] * itp[A1, B0 * (1.0+params["r_b"]) ]
     # value = utility(params, cons) + params["beta"] * itp[A1]
 
     ## ------------------------------------------------------------------------
@@ -45,7 +45,7 @@ end
     # TODO: should define B1_default
     B1_default = B0 * (1.0+params["r_b"])
 
-    if isapprox(B1_default, B1) | (ixt >= Tretire)
+    if isapprox(B1_default, B1) # | (ixt >= Tretire)
         return 0.0
     elseif B1 < B0 # B1_default
         early_withdrawal = abs(B1 - B1_default) # TODO: might not need that abs()

@@ -81,7 +81,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                 Y0              = Ygrid[ixt, ixY]                                    # income today
 
                 # Set astar_negs: IMPORTANT MUST BE SAME IN STAGE 1 AND STAGE 2 -- better to put this code elsewhere - though it does depend on Y0
-                astar_min_uncon = (minCons-Y0-r_b*B0) / R_a 
+                astar_min_uncon = (minCons-Y0-r_b*B0) / R_a # TODO: what is up with returns here?
                 astar_min       = max(astar_min_uncon, -max_contrib)
                 astar_negs      = getGrid(astar_min, 0.0, 5, "equalsteps")[1:end-1]
                 Astargrid       = [astar_negs; Agrid[ixt, :]] 
@@ -95,7 +95,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                     lbA1  = Agrid[ixt + 1, 1]            # lower bound: assets tomorrow
                     # ubA1 = (A0 + Y0 - minCons)*(1.0+r)  # OLD: upper bound: assets tomorrow
                     # ubA1   = R_a*A0 + Y0 - r_b*B0 - minCons  # upper bound: assets tomorrow
-                    ubA1 = R_a*A0 + Y0 + r_b*B0 - minCons      # upper bound: assets tomorrow
+                    ubA1 = R_a*A0 + Y0 - minCons      # upper bound: assets tomorrow
                     # My note: pretty sure this should be + r_b*B0 !!
 
                     # WAIT... is it weird that you get your return on B0 now? When this is effectively a choice variable in the no-adjust problem?
@@ -109,8 +109,10 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                         
                         # println([lbA1, ubA1])
                         # negV = objectivefunc(params, itp, lbA1, A0, Y0, B0)
-                        negV = - ( utility(params, minCons) + params["beta"] * itp[lbA1, B0] )
+                        negV = - ( utility(params, minCons) + params["beta"] * itp[lbA1, B0*R_b] )
                         policyA1_NA[ixt,ixA0,ixB0,ixY] = lbA1
+
+                        # println("wait - does this part work?")
                     else
                         # Find the A1 that minimizes the objective function
 
@@ -324,8 +326,8 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                         # end
 
                         Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
-                        policyB1[ixt,ixA0,ixB0,ixY]   = Res.minimizer
-                        V[ixt, ixA0, ixB0, ixY]       = - Res.minimum     
+                        policyB1[ixt,ixA0,ixB0,ixY]     = Res.minimizer
+                        V[ixt, ixA0, ixB0, ixY]         = - Res.minimum     
                         policyAdj[ixt, ixA0, ixB0, ixY] = 1.0
 
                         # Interpolate over policy function for liquid assets assuming no adjustment of B1

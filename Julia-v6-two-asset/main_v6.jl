@@ -50,12 +50,12 @@ params["minCons"]          = 1e-5                # min allowed consumption
 
 # Returns
 params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-params["r_b"]              = 0.001
-params["r"]                = 0.001      # Interest rate
+params["r_b"]              = 0.05
+params["r"]                = 0.0      # Interest rate
 # params["r"] = params["r_b"] 
 
 # Preferences 
-params["beta"]             = 0.98                # 1/(1+r) # Discount factor
+params["beta"]             = 0.95                # 1/(1+r) # Discount factor
 params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
 params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
 params["startA"]           = 0.0                 # How much asset do people start life with
@@ -65,15 +65,15 @@ params["mu"]               = 0.0                 # mean of initial log income
 params["sigma"]            = 0.25                # variance of innovations to log income
 # params["sigma"]            = 0.01                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
-params["Yretire"]          = 0.5
+params["Yretire"]          = 0.25
 
 # Retirement account
 # params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
 # params["max_contrib"]      = 40.0                 # maximum contribution to retirement account each period (arbitrary)
-params["max_contrib"]      = 5.0                 # maximum contribution to retirement account each period (arbitrary)
+params["max_contrib"]      = 10.0                 # maximum contribution to retirement account each period (arbitrary)
 params["adj_cost_fixed"]   = 0.0
-params["adj_cost_prop"]    = 0.5
+params["adj_cost_prop"]    = 0.0
 
 
 # Constants
@@ -121,18 +121,8 @@ Bgrid = Agrid
 ## Solve
 ################################################################################
 
-if useEulerEquation == true
-    println("Solve Euler Equation")
-    #@time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx)
-    @time policyA1, policyC, V, EV, dU, EdU = solveEulerEquation(params, Agrid, Ygrid, incTransitionMrx) # NOTE: julia uses just in time compilation, so the second run is faster than the first because the code has now been compiled
-elseif runparallel == false
-    println("Solve Value Function: Serial")
-    @time policyA1, policyC, V, EV  = solveValueFunction(params, Agrid, Ygrid, incTransitionMrx)
-else
-    println("Solve Value Function: Parallel")
-    @time policyA1, policyB1, policyC, V, EV, V_NA, policyAdj  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
-end
-
+println("Solve Value Function: Parallel")
+@time policyA1, policyB1, policyC, V, EV, V_NA, policyAdj  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
 # NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
 
 ################################################################################
@@ -154,10 +144,11 @@ plot(Agrid[ixt,:], policyA1[ixt, :, 1:5:numPointsB, ixY], ylabel="Policy A1", xl
 # plot(Agrid[ixt,:], policyA1[ixt, :, 5, :], ylabel="Policy A1", xlabel="A0") # in contrast, income has a clear effect on A1
 
 
-### POLICY FCNS FOR B1
+### POLICY FCNS FOR B1 based on A0
 plot(Agrid[ixt,:], policyB1[ixt, :, 1, ixY],  ylabel="Policy B1", xlabel="A0", title="Policy Fcn B1")
 
 
+### POLICY FCNS FOR B1 based on B0
 plot(Bgrid[ixt,:], policyB1[ixt, 1, :, ixY],  ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1",     label="ixA0 = 1")
 plot!(Bgrid[ixt,:], policyB1[ixt, 10, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1",    label="ixA0 = 10") 
 plot!(Bgrid[ixt,:], policyB1[ixt, end-1, :, ixY], ylabel="Policy B1", xlabel="B0", title="Policy Fcn B1", label="ixA0 = end-1") 
@@ -258,6 +249,13 @@ plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlab
 # TODO: why does value of holding B conditional on not adjusting go in the opposite direction of what i expect? or does this make sense? dunno 
 # TODO: perhaps put a cap on B1 holdings -- ensure that we're always on the A1star grid ?
 
-
+# NEXT THINGS TO TRY:
 # Maybe my issue comes from not keeping track of returns properly... seems sometimes i use end of period returns, othertimes start of period returns. Weird. 
 # Also wait... why would B0 affect your spending at all in the "no adjust" case? Wouldn't it be better if it just drops out entirely? Yes I think so.... gotta try that. 
+
+# Note: I have turned off "free withdrawals" after retirement -- now nobody should ever invest in the illiquid account. Weird!!
+
+# What if i give income in the outer loop? 
+
+# todo: 
+# use policyA1_NA() and impose that B1 = 0.0 always... are they able to smooth consumption?
