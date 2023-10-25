@@ -9,22 +9,16 @@
     end
 end
 
-@everywhere function objectivefunc(params::Dict{String,Float64}, itp, A1::Float64, A0::Float64, Y::Float64, B0::Float64)
+@everywhere function objectivefunc(params::Dict{String,Float64}, itp, A1::Float64, Atilde::Float64, B1::Float64)
 
     #-------------------------------------------------------------------------------#
     # This function returns the following quantity:
     # - (u(c) +  b V( A1))
     # where c is calculated from today's assets and tomorrow's assets
 
-    #Get tomorrow's consumption (cons), the value of left over assets (VA1) and
-    #total value (u(c) + b * VA1
-    # beta = params["beta"]
-    # r = params["r"]
 
-    # cons = A0 + Y - (A1)/(1 + params["r"])
-    # cons = ((1 + params["r"])*A0) + Y - A1 - params["r_b"] * B0
-    cons = ((1.0 + params["r"])*A0) + Y - A1 
-    value = utility(params, cons) + params["beta"] * itp[A1, B0 * (1.0+params["r_b"]) ]
+    cons  = Atilde - A1 
+    value = utility(params, cons) + params["beta"] * itp[A1, B1]
     # value = utility(params, cons) + params["beta"] * itp[A1]
 
     ## ------------------------------------------------------------------------

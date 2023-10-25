@@ -27,14 +27,14 @@ function getMinAndMaxAss(params, minInc, maxInc)
     # BC = zeros(size(BC))
 
     # Maximum illiquid assets
-    maxB[1] = 0.1 # arbitrary. just have this to prevent the first period grid being all zeros
-    for ixt = 2:1:T+1
-        maxB[ixt] = (maxB[ixt - 1] + params["max_contrib"] ) * (1 + params["r_b"])      
-    end
+    # maxB[1] = 0.1 # arbitrary. just have this to prevent the first period grid being all zeros
+    # for ixt = 2:1:T+1
+    #     maxB[ixt] = (maxB[ixt - 1] + params["max_contrib"] ) * (1 + params["r_b"])      
+    # end
 
-    if params["r"] > params["r_b"]
-        error("current grid setup won't support these params")
-    end
+    # if params["r"] > params["r_b"]
+    #     error("current grid setup won't support these params")
+    # end
 
     # Maximum Liquid Assets
     maxA[1] = params["startA"]
@@ -46,13 +46,16 @@ function getMinAndMaxAss(params, minInc, maxInc)
     if maxA[1] <= BC[1]
         maxA[1] = BC[1] + 1
     end
+
+    max_r = maximum([params["r"], params["r_b"]])
+
     for ixt = 2:1:T+1
         # Original version: one asset
         # maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] ) * (1 + params["r"])      
 
         # Updated version: two asset, one with higher return (assume that the agent return maximizes, so makes maximum contribution to liquid... 
         # then later add on maxB to capture the possibility that they withdraw all that period)
-        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1] - params["max_contrib"] ) * (1 + params["r"])      
+        maxA[ixt] = (maxA[ixt - 1] + maxInc[ixt-1]) * (1.0 + max_r)      
 
         if maxA[ixt] <= BC[ixt]
           maxA[ixt] = BC[ixt] + 1
@@ -60,8 +63,8 @@ function getMinAndMaxAss(params, minInc, maxInc)
     end
 
     # Now allow for the possiblity that you extract everything from their retirment account to liquid account (again all under assumption that you get higher returns on retirement account)
-    maxA = maxA .+ maxB
-
+    # maxA = maxA .+ maxB
+    maxB = maxA
 
     return BC, maxA, maxB
 end

@@ -15,7 +15,6 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
     sigma   = params["sigma"]
     r       = params["r"]
     startA  = params["startA"]
-    max_contrib = params["max_contrib"]
 
     ## ------------------------------------------------------------------------
     # Initialise arrays that will hold the paths of income consumption, value
@@ -143,7 +142,7 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             # Check whether next period's asset is below the lowest
             # permissable
             if ( a[t+1, s] < Agrid[t+1, 1] )
-                # println("Found a = $(a[t+1, s]) < 0 at time $t and sim $s given $(y[t,s])")
+                println("Found a = $(a[t+1, s]) < 0 at time $t and sim $s given $(y[t,s])")
                 a[t+1, s] = checkSimExtrap( Ygrid, Agrid[t+1, 1], y[t, s] );
             end
 
@@ -154,11 +153,11 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             end
 
             # Impose illiquid asset contribution limit
-            if ( b[t+1, s] > b[t, s] + max_contrib) 
-                # println("b increase by more than max contrib")
-                # println([ t, b[t+1, s] , b[t, s] , max_contrib ])
-                b[t+1, s] = b[t, s] + max_contrib
-            end
+            # if ( b[t+1, s] > b[t, s] + max_contrib) 
+            #     # println("b increase by more than max contrib")
+            #     # println([ t, b[t+1, s] , b[t, s] , max_contrib ])
+            #     b[t+1, s] = b[t, s] + max_contrib
+            # end
 
             # Get consumption from today's assets, today's income and tomorrow's optimal assets
             # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(t, b[t+1, s], b[t, s]) 

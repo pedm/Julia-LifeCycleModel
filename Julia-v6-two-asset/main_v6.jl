@@ -31,8 +31,6 @@ include("src/modelSetup.jl")
 include("src/utils.jl")
 include("src/model.jl")
 include("src/modelEulerEquation.jl")
-include("src/solveValueFunction.jl")
-include("src/solveEulerEquation.jl")
 include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
 
@@ -49,10 +47,9 @@ params["tol"]              = 1e-5               # max allowed error
 params["minCons"]          = 1e-5                # min allowed consumption
 
 # Returns
-params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-params["r_b"]              = 0.05
-params["r"]                = 0.0      # Interest rate
-# params["r"] = params["r_b"] 
+# params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
+params["r_b"]              = 0.0
+params["r"]                = 0.1     # Interest rate
 
 # Preferences 
 params["beta"]             = 0.95                # 1/(1+r) # Discount factor
@@ -70,8 +67,6 @@ params["Yretire"]          = 0.25
 # Retirement account
 # params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-# params["max_contrib"]      = 40.0                 # maximum contribution to retirement account each period (arbitrary)
-params["max_contrib"]      = 10.0                 # maximum contribution to retirement account each period (arbitrary)
 params["adj_cost_fixed"]   = 0.0
 params["adj_cost_prop"]    = 0.0
 
@@ -84,9 +79,9 @@ const T                    = 10                  # Number of time period
 const Tretire              = 6                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 3                   # number of points in the income grid
-const numPointsA           = 30                  # number of points in the discretised asset grid
-const numPointsB           = 30                  # number of points in the discretised asset grid
+const numPointsY           = 5                   # number of points in the income grid
+const numPointsA           = 50                  # number of points in the discretised asset grid
+const numPointsB           = 50                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 500                  # How many individuals to simulate
@@ -111,7 +106,6 @@ for ixt = 1:1:T+1
     Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxB[ixt], numPointsB, gridMethod)
 end
 
-Bgrid = Agrid 
 
 # for k in 1:3, j in 1:3, i in 1:3
 #     @show (i, j, k)
@@ -122,7 +116,7 @@ Bgrid = Agrid
 ################################################################################
 
 println("Solve Value Function: Parallel")
-@time policyA1, policyB1, policyC, V, EV, V_NA, policyAdj  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
+@time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
 # NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
 
 ################################################################################
@@ -259,3 +253,5 @@ plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlab
 
 # todo: 
 # use policyA1_NA() and impose that B1 = 0.0 always... are they able to smooth consumption?
+
+# TODO: in the simulation, could use the policy fcn for A1 conditional on B1 and atilde(B1)... would that be better? maybe?
