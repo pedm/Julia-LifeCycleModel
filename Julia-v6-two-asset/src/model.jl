@@ -31,7 +31,7 @@ end
     return value
 end
 
-@everywhere function transaction_costs(ixt, B1, B0)
+@everywhere function transaction_costs(params, ixt, B1, B0)
 
     # Most realistic: Only have a fee if withdrawing:
     # TODO: maybe later: want to have some subsidy to contributions

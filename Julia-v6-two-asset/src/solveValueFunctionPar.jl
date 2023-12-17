@@ -71,12 +71,14 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
                 EV1   = EV[ixt + 1, :, :, ixY]         # relevant section of EV matrix (in assets tomorrow)
                 EV_fcn = interpolate(nodes, EV1, Gridded(Linear()))
 
+                # NOTE: Y0 no longer needed for the inner problem
+                # Ah but that doesn't save us any computational time because EV still depends on ixY
                 Y0              = Ygrid[ixt, ixY]                                    # income today
                 
                 # maybe better to define Lgrid here and then loop over ixL0
                 for ixAtilde = 1:numPointsA               # points on liq asset grid
 
-                    Atilde    = Agrid1[ixAtilde]             # middle-of-period liquid assets
+                    Atilde    = Agrid1[ixAtilde]         # middle-of-period liquid assets
                     lbA1      = Agrid1[1]                # lower bound: assets tomorrow
                     ubA1      = Atilde - minCons         # upper bound: assets tomorrow
 
@@ -144,7 +146,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                     # Define a_star as middle-of-period liquid assets (i.e. what you have after adjusting your illiquid assets)
                     function a_tilde(B1) # middle-of-period liquid assets
-                        return R_a*A0 + R_b*B0 + Y0 - transaction_costs(ixt, B1, B0) - B1
+                        return R_a*A0 + R_b*B0 + Y0 - transaction_costs(params, ixt, B1, B0) - B1
                     end
 
                     # define obj fcn (Seb Graves' Vtilde)
@@ -174,7 +176,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                     # Choose upper and lower bound for illiquid assets tomorrow
                     lbB1     = Bgrid[ixt + 1, 1]           
-                    ubB1_max = R_a*A0 + R_b*B0 + Y0 - transaction_costs(ixt, 0.0, B0) + minCons # NOT SURE THIS IS RIGHT !
+                    ubB1_max = minCons + R_a*A0 + R_b*B0 + Y0 # - transaction_costs(params, ixt, 0.0, B0)  # NOT SURE THIS IS RIGHT !
                     # GOAL of ubB1: Ensure that a_tilde(B1) >= 0
 
                     if (ubB1_max - lbB1 < minCons)        # issue - look into this!

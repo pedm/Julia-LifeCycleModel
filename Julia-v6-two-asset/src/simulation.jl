@@ -160,8 +160,8 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             # end
 
             # Get consumption from today's assets, today's income and tomorrow's optimal assets
-            # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(t, b[t+1, s], b[t, s]) 
-            c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(t, b[t+1, s], b[t, s]) 
+            # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(params, t, b[t+1, s], b[t, s]) 
+            c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(params, t, b[t+1, s], b[t, s]) 
             # NOTE: is it better to get the returns at the start or end of the period? Not sure... 
             
         end # s

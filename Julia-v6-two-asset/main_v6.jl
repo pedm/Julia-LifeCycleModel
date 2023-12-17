@@ -48,8 +48,8 @@ params["minCons"]          = 1e-5                # min allowed consumption
 
 # Returns
 # params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-params["r_b"]              = 0.0
-params["r"]                = 0.1     # Interest rate
+params["r_b"]              = 0.04
+params["r"]                = 0.04     # Interest rate
 
 # Preferences 
 params["beta"]             = 0.95                # 1/(1+r) # Discount factor
@@ -59,16 +59,16 @@ params["startA"]           = 0.0                 # How much asset do people star
 
 # Income process
 params["mu"]               = 0.0                 # mean of initial log income
-params["sigma"]            = 0.25                # variance of innovations to log income
+params["sigma"]            = 0.2                 # variance of innovations to log income
 # params["sigma"]            = 0.01                # variance of innovations to log income
 params["rho"]              = 0.75                # persistency of log income
-params["Yretire"]          = 0.25
+params["Yretire"]          = 0.5
 
 # Retirement account
 # params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
 # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-params["adj_cost_fixed"]   = 0.0
-params["adj_cost_prop"]    = 0.0
+params["adj_cost_fixed"]   = 0.2
+params["adj_cost_prop"]    = 0.4
 
 
 # Constants
@@ -76,12 +76,12 @@ const interpMethod         = "linear"            # for now, I only allow linear 
 # const T                    = 60                  # Number of time period
 # const Tretire              = 45                  # Age at which retirement happens
 const T                    = 10                  # Number of time period
-const Tretire              = 6                  # Age at which retirement happens
+const Tretire              = 7                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 5                   # number of points in the income grid
-const numPointsA           = 50                  # number of points in the discretised asset grid
-const numPointsB           = 50                  # number of points in the discretised asset grid
+const numPointsY           = 3                   # number of points in the income grid
+const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
+const numPointsB           = 30                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 500                  # How many individuals to simulate
@@ -177,8 +177,8 @@ plot!(1:length(V_NA[ixt, :, end, ixY]), V_NA[ixt, :, 1, ixY],   ylabel="V_NA", x
 
 ### V_NA PLOTS conditinal on Bgrid - aka illiquid assets assuming you don't adjust
 ixt = 3
-plt = plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 1")
-plt = plot!(Bgrid[ixt,:], V_NA[ixt, 2, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 2")
+#plt = plot(Bgrid[ixt,:], V_NA[ixt, 1, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 1")
+plt = plot(Bgrid[ixt,:], V_NA[ixt, 2, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 2")
 plt = plot!(Bgrid[ixt,:], V_NA[ixt, 5, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 5")
 plt = plot!(Bgrid[ixt,:], V_NA[ixt, 10, :, ixY], ylabel="V_NA", xlabel="B0", label = "ixAstar = 10")
 display(plt)
@@ -255,3 +255,6 @@ plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlab
 # use policyA1_NA() and impose that B1 = 0.0 always... are they able to smooth consumption?
 
 # TODO: in the simulation, could use the policy fcn for A1 conditional on B1 and atilde(B1)... would that be better? maybe?
+
+# NOTES:
+# Might want to play around with the gridMethod for Atildegrid. I am guessing we do not want so many points at zero, since it will be very rare for consumption to be zero. 
