@@ -1,4 +1,5 @@
-function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fixed = 0.1)
+function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fixed = 0.1, 
+    det_inc = true)
 
     # Define the parameters as a dictionary
     # TODO: create a Dict of various objects (params, objs, etc)
@@ -39,14 +40,17 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fi
 
     # Income Polynomial: same as Kovacs Moran
     params["inc_reg_constant"] = 8.200711172
-    params["inc_reg_age"]      = 0.13785127489
-    params["inc_reg_age2"]     = -0.00193768738
-    params["inc_reg_age3"]     = 6.589127792278049e-6
-    # params["inc_reg_age"]      = 0.0
-    # params["inc_reg_age2"]     = 0.0
-    # params["inc_reg_age3"]     = 0.0
-    params["Y0_sigma"]         = sqrt( 0.1683 )
-    
+    if det_inc
+        params["inc_reg_age"]      = 0.13785127489
+        params["inc_reg_age2"]     = -0.00193768738
+        params["inc_reg_age3"]     = 6.589127792278049e-6
+        # params["Y0_sigma"]         = sqrt( 0.1683 )
+    else
+        params["inc_reg_age"]      = 0.0
+        params["inc_reg_age2"]     = 0.0
+        params["inc_reg_age3"]     = 0.0
+    end
+
     return params
 
         # Eirik Version:

@@ -40,9 +40,12 @@ include("src/simulation.jl")
 ################################################################################
 
 # Test 1: do they only use the liquid asset?
-# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0)
+# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, det_inc = false)
 
 # Test 2: do they only use the illiquid asset?
+# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false)
+
+# Now add hump shaped income profile
 params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
 
 # Baseline: do they use some mix of both?
@@ -59,8 +62,7 @@ const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
 const numPointsY           = 5                   # number of points in the income grid
 const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
-const numPointsB           = 30                  # number of points in the discretised asset grid
-# const numPointsB           = 50                  # number of points in the discretised asset grid
+const numPointsB           = 50                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
 const numSims              = 100                  # How many individuals to simulate
