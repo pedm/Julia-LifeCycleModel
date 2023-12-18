@@ -95,15 +95,17 @@ function getIncomeGrid(params)
     # Scenario where there is uncertainty - income draws are log normally distributed
     #----------------------------------------#
 
-
-    # First get the standard deviation of income (from sigma and rho)
-    sig_inc = params["sigma"] / ((1- params["rho"]^2)^0.5)
+    # First get the standard deviation of income (from sigma and rho) (note: this is standard deviation of income in the steady state)
+    # We confirmed in Adda & Cooper that this is indeed std and not variance
+    sig_inc = compute_sig_inc( params )
+    # NOTE: sig_inc will be Inf if rho = 1.
+    # sig_inc is used to define Ygrid
 
     # Split the entire normal distribution into numPointsY sections that
     # are equiprobable. The output lNormDev gives the (numPointsY + 1)
     # points that bound the sections, the output ly gives the
     # (numPointsY) expected value in each section
-    lNormDev, ly = getNormDev(params["mu"], sig_inc, normBnd, numPointsY );
+    lNormDev, lZ = getNormDev(params["mu"], sig_inc, normBnd, numPointsY )
 
     #---------------------#
     #Get transition matrix Q(i, j). The prob of income j in t+1
@@ -112,8 +114,8 @@ function getIncomeGrid(params)
     Q = zeros(numPointsY, numPointsY)              #initialise the transition matrix
     for i = 1:1:numPointsY
         for j = 1:1:numPointsY
-            hiDraw = lNormDev[j+1] - (1-params["rho"])*params["mu"] - params["rho"] * ly[i]; #highest innovation that will give us income j tomorrow
-            loDraw = lNormDev[j]   - (1-params["rho"])*params["mu"] - params["rho"] * ly[i]; #lowest  innovation that will give us income j tomorrow
+            hiDraw = lNormDev[j+1] - (1-params["rho"])*params["mu"] - params["rho"] * lZ[i]; #highest innovation that will give us income j tomorrow
+            loDraw = lNormDev[j]   - (1-params["rho"])*params["mu"] - params["rho"] * lZ[i]; #lowest  innovation that will give us income j tomorrow
             Q[i,j] = stdnormcdf_manual(hiDraw/params["sigma"]) - stdnormcdf_manual(loDraw/params["sigma"]);
         end #j
 
@@ -123,40 +125,78 @@ function getIncomeGrid(params)
         Q[i, :] = Q[i, :] ./ sum(Q[i, :])
     end #i
 
-    y = exp.(ly);                      # Get y from log y
-    minInc = exp(-normBnd * sig_inc); #Get the minimum income in each year
-    maxInc = exp(normBnd * sig_inc);  #Get the maximum income in each year
+    Z = exp.(lZ);                      # Get y from log y
+    minZ = exp(-normBnd * sig_inc); #Get the minimum income in each year # NOTE: are we missing mu here? Cormac bug ??
+    maxZ = exp(normBnd * sig_inc);  #Get the maximum income in each year
 
-    if (y[1] < 1e-4) || (y[ numPointsY ] > 1e5)
-        warning("Combination of sigma and rho give a very high income variance. Numerical instability possible")
+    if (Z[1] < 1e-4) || (Z[ numPointsY ] > 1e5)
+        warn("Combination of sigma and rho give a very high income variance. Numerical instability possible", once = true)
     end
 
     #----------------------------------------#
     #Now get a matrix, T * numPointsY that holds the grid for each income in
     #each year. Do likewise with minimum and maximum income
     #----------------------------------------#
-    Ygrid = repeat(y', T, 1)
-    minInc = repeat([minInc], T, 1)
-    maxInc = repeat([maxInc], T, 1)
+    Zgrid = repeat(Z',      Tretire)
+    minZ  = repeat([minZ'], Tretire)
+    maxZ  = repeat([maxZ'], Tretire)
 
 
+    #----------------------------------------#
+    # Add deterministic age trend
+    #----------------------------------------#
+
+    # Estimate on PSID using ages 22 - 65 
+    # from PSID i get: logincome = 8.247418 + .1123966 * Age + -.0114392  * (Age^2)/10
+    if Tretire == 44
+        t         = collect(22:1:22+Tretire - 1 )  # this works when Tretire = 44
+        logincome = params["inc_reg_constant"]*ones(size(t)) + params["inc_reg_age"] * t + (params["inc_reg_age2"] * t.^2) + (params["inc_reg_age3"] * t.^3) # + (params["inc_reg_age4"] * t.^4)/1000
+    else
+        # this will be the same as the above case when Tretire = 44
+        t = collect(LinRange(22, 20+44-1 , Tretire )) # get evenly spaced t
+        logincome = params["inc_reg_constant"]*ones(size(t)) + params["inc_reg_age"] * t + (params["inc_reg_age2"] * t.^2) + (params["inc_reg_age3"] * t.^3) # + (params["inc_reg_age4"] * t.^4)/1000
+    end
+
+
+    income = exp.(logincome)
+
+    # Store the value of initial income -- later we will scale up using this value
+    income_scale = copy(income[1])
+    println("income_scale = $income_scale")
+
+    # Why do we do this? Answer: when we create 5logstep asset grid, very different grid if income is 25k per year vs 1-2 per year
+    det_income = income ./ income_scale # standardized_income
+
+    #----------------------------------------#
+    #Now get a matrix, T * numPointsY that holds the grid for each income in
+    #each year. Do likewise with minimum and maximum income
+    #----------------------------------------#
+    Ygrid = zeros(T, numPointsY)
+    minInc = zeros(T)
+    maxInc = zeros(T)
+
+    Ygrid[1:Tretire, :]  = Zgrid .* repeat( det_income, 1, numPointsY)            # construct Ygrid pre ret
+    minInc[1:Tretire]  = minZ .* det_income
+    maxInc[1:Tretire]  = maxZ .* det_income
+    # ret_income = params["ret_fraction"] * det_income[end] * ones(T - Tretire)
 
     #----------------------------------------#
     #Replace these arrays with zeros for all years after retirement
     #----------------------------------------#
+    Ygrid[Tretire:T, :] .= params["Yretire"]
+    minInc[Tretire:T] .= params["Yretire"]
+    maxInc[Tretire:T] .= params["Yretire"]
 
-    if Tretire == 0         # no work (retired at birth)
-       Ygrid[:, :] .= params["Yretire"]
-       minInc[:, :] .= params["Yretire"]
-       maxInc[:, :] .= params["Yretire"]
-    elseif (Tretire > 0) && (Tretire <=T)  #retire at some age
-        Ygrid[Tretire:T, :] .= params["Yretire"]
-        minInc[Tretire:T, :] .= params["Yretire"]
-        maxInc[Tretire:T, :] .= params["Yretire"]
-    end
+    return Ygrid, Q, minInc, maxInc, det_income
 
-    return Ygrid, Q, minInc, maxInc
+end
 
+function compute_sig_inc(params::Dict{String,Float64})
+    # We use sig_inc to define the grid points in Ygrid and to define the places at which we truncate the income distribution (aka we truncate income at normBnd*sig_inc)
+
+    rho = params["rho"]
+    sig_inc = params["sigma"] / (( 1.0 - rho ^2.0 )^0.5)
+    return sig_inc
 end
 
 function getNormDev(mu, sigma_inc, trunc, N )

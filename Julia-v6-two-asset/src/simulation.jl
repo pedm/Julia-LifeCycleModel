@@ -29,8 +29,10 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
     # Other arrays that will be used below
     e     = zeros(T, numSims);        # the innovations to log income
-    logy1 = zeros(1, numSims);        # draws for initial income
-    ly    = zeros(T, numSims);        # log income
+    logZ1 = zeros(1, numSims);        # draws for initial income
+    lZ    = zeros(Tretire, numSims)       # log income
+    Z     = zeros(Tretire, numSims)       # stochastic part of income
+    y    = zeros(T, numSims);        # income
     ypathIndex = zeros(T, numSims);   # holds the index (location) in the vector
 
     ## ------------------------------------------------------------------------
@@ -39,31 +41,44 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
     # Draw random draws for starting income and for innovations
     seed1 = 1223424; # For the innovations
     seed2 = 234636;  # For initial income
-    sig_inc = sigma/((1-rho^2)^0.5); # long-run variance for AR(1), which is assumed variance of unconditional distribution at each age
-    e = getNormalDraws( 0, sigma,  T, numSims, seed1);  # normally distributed random draws for the innovation
-    logy1 =  getNormalDraws( mu, sig_inc,  1, numSims, seed2); # a random draw for the initial income
+    sig_inc = compute_sig_inc(params)
+    e       = getNormalDraws( 0.0, sigma, T, numSims, seed1);    # normally distributed random draws for the innovation # NOTE: we actually just need Tretire
+    logZ1   = getNormalDraws( mu, sig_inc, 1, numSims, seed2); # a random draw for the initial income
+    # Later might replace sig_inc with 
 
     # Get all the incomes, recursively
     for s = 1:1: numSims                           # loop through individuals
-        ly[1, s] = truncate_custom(logy1[1, s], -normBnd*sig_inc,normBnd*sig_inc );
-        y[1, s] = exp(ly[1, s]);
-        for t = 1:1:T                              # loop through time periods for a particular individual
+        lZ[1, s] = truncate_custom(logZ1[1, s], mu - normBnd*sig_inc, mu + normBnd*sig_inc )
+        Z[1, s]  = exp(lZ[1, s])
+
+        for t = 1:1:Tretire-1                              # loop through time periods for a particular individual
             if (t != T)  # Get next year's income
-                ly[t+1, s] = (1 -rho) * mu + rho * ly[t, s] + e[t + 1, s];
-                ly[t+1, s] = truncate_custom(ly[t+1, s], -normBnd*sig_inc,normBnd*sig_inc );
-                y[t+1, s] = exp( ly[t+1, s] );
+                # ly[t+1, s] = (1 -rho) * mu + rho * ly[t, s] + e[t + 1, s];
+                # ly[t+1, s] = truncate_custom(ly[t+1, s], -normBnd*sig_inc,normBnd*sig_inc );
+                # y[t+1, s] = exp( ly[t+1, s] );
+
+                lZ[t+1, s] = (1 -rho) * mu + rho * lZ[t, s] + e[t + 1, s]; # Note: the (1-rho) allows the AR(1) process to have a nonzero mean: http://www.maths.qmul.ac.uk/~bb/TimeSeries/TS_Chapter4_5.pdf
+                lZ[t+1, s] = truncate_custom(lZ[t+1, s], mu - normBnd*sig_inc, mu + normBnd*sig_inc );  # NOTE: Cormac's code was missing a mu here. His version resulted in 0.0 starting income always
+                Z[t+1, s] = exp( lZ[t+1, s] );
             end # if (t ~= T)
 
             if (t >= Tretire) 
-                y[t, s] = params["Yretire"]
+                Z[t, s] = params["Yretire"]
             end # if (t >= Tretire)
 
             # Bound income if not extrapolating
             if !extrap_sim
-                y[t, s] = truncate_custom(y[t, s], Ygrid[t,1], Ygrid[t,end])
+                Z[t, s] = truncate_custom(Z[t, s], Ygrid[t,1], Ygrid[t,end])
             end
        end # t
     end # s
+
+    # Now scale up based on deterministic component of income
+    y[1:Tretire, :] = Z .* repeat(det_income, 1, numSims)
+
+    for t = Tretire:T                              # loop through time periods for a particular individual
+        y[t, :] = params["Yretire"] * ones(1, numSims)
+    end
 
     ## ------------------------------------------------------------------------
     # Obtain consumption, asset and value profiles
@@ -143,13 +158,13 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             # permissable
             if ( a[t+1, s] < Agrid[t+1, 1] )
                 println("Found a = $(a[t+1, s]) < 0 at time $t and sim $s given $(y[t,s])")
-                a[t+1, s] = checkSimExtrap( Ygrid, Agrid[t+1, 1], y[t, s] );
+                a[t+1, s] = checkSimExtrap( Ygrid[t,:], Agrid[t+1, 1], y[t, s] );
             end
 
             # Impose constraint that illiquid assets must always be >= 0
             if ( b[t+1, s] < Bgrid[t+1, 1] )
                 # println("Found b = $(b[t+1, s]) < 0 at time $t and sim $s given $(y[t,s])")
-                b[t+1, s] = checkSimExtrap( Ygrid, Bgrid[t+1, 1], y[t, s] );
+                b[t+1, s] = checkSimExtrap( Ygrid[t,:], Bgrid[t+1, 1], y[t, s] );
             end
 
             # Impose illiquid asset contribution limit
@@ -200,6 +215,7 @@ function checkSimExtrap( Ygrid, lba1, y )
     if (y > Ygrid[numPointsY]) || (y < Ygrid[1])
         a1 = lba1;
     else
+        println( lba1, y )
         error("Next periods asset is below minimum permissable assets. And we are not extrapolating. Likely there is a bug")
     end
     return a1
