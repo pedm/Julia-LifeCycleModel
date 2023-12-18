@@ -27,6 +27,7 @@ runparallel = true
 ## Load dependencies
 ################################################################################
 
+include("src/convenience.jl") 
 include("src/modelSetup.jl")
 include("src/utils.jl")
 include("src/model.jl")
@@ -38,37 +39,14 @@ include("src/simulation.jl")
 ## Define parameters and constants
 ################################################################################
 
-# Define the parameters as a dictionary
-# TODO: how does speed compare to using a constant?
-# TODO: create a Dict of various objects (params, objs, etc)
-# TODO: https://docs.julialang.org/en/stable/manual/performance-tips/#tools-1
-params                     = Dict{String, Float64}()
-params["tol"]              = 1e-5               # max allowed error
-params["minCons"]          = 1e-5                # min allowed consumption
+# Test 1: do they always use the liquid asset?
+# params = setpar(;beta = 0.95, r_b = 0.04, r = 0.04)
 
-# Returns
-# params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
-params["r_b"]              = 0.04
-params["r"]                = 0.04     # Interest rate
+# Test 2: do they always use the illiquid asset?
+# params = setpar(;beta = 0.95, r_b = 0.04, r = 0.0, adj_cost = false)
 
-# Preferences 
-params["beta"]             = 0.95                # 1/(1+r) # Discount factor
-params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
-params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
-params["startA"]           = 0.0                 # How much asset do people start life with
-
-# Income process
-params["mu"]               = 0.0                 # mean of initial log income
-params["sigma"]            = 0.2                 # variance of innovations to log income
-# params["sigma"]            = 0.01                # variance of innovations to log income
-params["rho"]              = 0.75                # persistency of log income
-params["Yretire"]          = 0.5
-
-# Retirement account
-# params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
-# params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-params["adj_cost_fixed"]   = 0.2
-params["adj_cost_prop"]    = 0.4
+# Baseline: do they use some mix of both?
+params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0)
 
 
 # Constants
