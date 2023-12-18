@@ -39,14 +39,14 @@ include("src/simulation.jl")
 ## Define parameters and constants
 ################################################################################
 
-# Test 1: do they always use the liquid asset?
-# params = setpar(;beta = 0.95, r_b = 0.04, r = 0.04)
+# Test 1: do they only use the liquid asset?
+# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0)
 
-# Test 2: do they always use the illiquid asset?
-# params = setpar(;beta = 0.95, r_b = 0.04, r = 0.0, adj_cost = false)
+# Test 2: do they only use the illiquid asset?
+params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
 
 # Baseline: do they use some mix of both?
-params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0)
+# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0)
 
 
 # Constants
@@ -57,12 +57,13 @@ const T                    = 10                  # Number of time period
 const Tretire              = 7                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 3                   # number of points in the income grid
+const numPointsY           = 5                   # number of points in the income grid
 const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
 const numPointsB           = 30                  # number of points in the discretised asset grid
+# const numPointsB           = 50                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
-const numSims              = 500                  # How many individuals to simulate
+const numSims              = 100                  # How many individuals to simulate
 const useEulerEquation     = false               # Solve the model using the euler equation?
 const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 const linearise            = true               # Whether to linearise the slope of EdU when using EE
@@ -73,7 +74,7 @@ const extrap_sim           = true
 ################################################################################
 
 # Get income grid
-Ygrid, incTransitionMrx, minInc, maxInc = getIncomeGrid(params)
+Ygrid, incTransitionMrx, minInc, maxInc, det_income = getIncomeGrid(params)
 
 # Get asset grids
 MinAss, MaxAss, MaxB = getMinAndMaxAss(params, minInc, maxInc)
@@ -83,7 +84,6 @@ for ixt = 1:1:T+1
     Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
     Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxB[ixt], numPointsB, gridMethod)
 end
-
 
 # for k in 1:3, j in 1:3, i in 1:3
 #     @show (i, j, k)
@@ -101,7 +101,25 @@ println("Solve Value Function: Parallel")
 ## Simulate
 ################################################################################
 
-cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+@time cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+
+
+
+################################################################################
+# LATER: Tests
+################################################################################
+
+# For Test #1: this should be zero everywhere
+[maximum(policyB1[t, :, 1, :]) for t = 1:T]
+# [maximum(policyB1[t, 1:40, 1, :]) for t = 1:T] # at least it's zero when ppl have very little
+
+# Note that the above works when there's no fixed cost... but fails when there is a fixed cost (due to non-convexities)
+
+# Alt Test 1: do they only use the liquid asset? (more difficult b/c the fixed cost introduces non-convexities, which )
+# params = setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost_fixed = 0.1)
+
+# For Test 2:
+# [maximum(policyA1[t, 1, 1:numPointsB-10, :]) for t = 1:T]
 
 ################################################################################
 ## Plot
@@ -236,3 +254,6 @@ plot!([1:length(ypath[:, 1])], ypath_mean, linewidth = 2, label = "Income", xlab
 
 # NOTES:
 # Might want to play around with the gridMethod for Atildegrid. I am guessing we do not want so many points at zero, since it will be very rare for consumption to be zero. 
+
+
+

@@ -1,4 +1,4 @@
-function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true)
+function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fixed = 0.1)
 
     # Define the parameters as a dictionary
     # TODO: create a Dict of various objects (params, objs, etc)
@@ -22,14 +22,14 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true)
     params["mu"]               = 0.0                 # mean of initial log income
     params["sigma"]            = 0.2                 # variance of innovations to log income
     # params["sigma"]            = 0.01                # variance of innovations to log income
-    params["rho"]              = 0.75                # persistency of log income
+    params["rho"]              = 0.75                 # persistency of log income
     params["Yretire"]          = 0.5
 
     # Retirement account
     if adj_cost
         # params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
         # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-        params["adj_cost_fixed"]   = 0.2
+        params["adj_cost_fixed"]   = adj_cost_fixed
         params["adj_cost_prop"]    = 0.4
     else
         # No adj costs:
@@ -37,6 +37,16 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true)
         params["adj_cost_prop"]    = 0.0
     end
 
+    # Income Polynomial: same as Kovacs Moran
+    params["inc_reg_constant"] = 8.200711172
+    params["inc_reg_age"]      = 0.13785127489
+    params["inc_reg_age2"]     = -0.00193768738
+    params["inc_reg_age3"]     = 6.589127792278049e-6
+    # params["inc_reg_age"]      = 0.0
+    # params["inc_reg_age2"]     = 0.0
+    # params["inc_reg_age3"]     = 0.0
+    params["Y0_sigma"]         = sqrt( 0.1683 )
+    
     return params
 
         # Eirik Version:
