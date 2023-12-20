@@ -36,7 +36,6 @@ end
     # Most realistic: Only have a fee if withdrawing:
     # TODO: maybe later: want to have some subsidy to contributions
 
-    # TODO: should define B1_default
     B1_default = B0 * params["R_b"]
 
     # Orig version: 

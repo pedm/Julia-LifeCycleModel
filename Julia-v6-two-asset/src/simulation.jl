@@ -32,6 +32,7 @@ function simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
     # Arguments for output
     y = zeros(T, numSims);            # income
     c = zeros(T, numSims);            # consumption
+    ew= zeros(T, numSims);            # early withdrawal
     v = zeros(T, numSims);            # value
     a = zeros(T + 1,numSims);         # this is the path at the start of each period, so we include the 'start' of death
     b = zeros(T + 1,numSims);         # this is the path at the start of each period, so we include the 'start' of death
@@ -188,10 +189,28 @@ function simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(params, t, Tretire, b[t+1, s], b[t, s]) 
             # NOTE: is it better to get the returns at the start or end of the period? Not sure... 
             
+            # Record if early withdrawal
+            # Note: could alternaively record if transaction_cost is positive
+            B0 = b[t, s]
+            B1 = b[t+1, s]
+            B1_default = B0 * params["R_b"]
+            if isapprox(B1_default, B1) | (t >= Tretire) 
+                
+            elseif (B1 < B1_default)
+                ew[t,s] = 1.0
+                cost = transaction_costs(params, t, Tretire, b[t+1, s], b[t, s])
+                # println(cost)
+                if cost <= 0.0
+                    if (params["adj_cost_fixed"] > 0.0) | (params["adj_cost_prop"] > 0.0)
+                        error("why no cost for early withdrawal?")
+                    end
+                end
+            end
+
         end # s
     end #t
 
-    return c, a, b, v, y
+    return c, a, b, v, y, ew
 end
 
 function getNormalDraws( mu, sigma,  dim1, dim2, seed)

@@ -152,7 +152,7 @@ end
 function setmodel(; args...)
     model                     = Dict{String, Any}()
 
-    println(args)
+    # println(args)
 
     # Model Structure
     ints                     = Dict{String, Int64}()

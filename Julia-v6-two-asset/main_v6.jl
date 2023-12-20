@@ -42,11 +42,11 @@ include("src/rouwenhorst/rouwenhorst.jl")
 ################################################################################
 
 # Test 1: do they only use the liquid asset?
-# Note: also helps to make transaction cost apply after retirement too
-model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75)
+# Note: must make transaction cost apply after retirement too
+# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75)
 
 # Test 2: do they only use the illiquid asset?
-# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false, rho = 0.75)
+model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false, rho = 0.75)
 
 # Now add hump shaped income profile
 # model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
@@ -89,8 +89,8 @@ println("Solve Value Function: Parallel")
 ## Simulate
 ################################################################################
 
-@time cpath, apath, bpath, vpath, ypath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
-@time cpath, apath, bpath, vpath, ypath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+@time cpath, apath, bpath, vpath, ypath, ewpath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+# @time cpath, apath, bpath, vpath, ypath, ewpath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
 
 
@@ -186,19 +186,27 @@ plot!(minimum(bpath, dims = 2))
 plot( maximum(apath, dims = 2))
 plot!(minimum(apath, dims = 2))
 
-# TODO: look at value function given B... does it have curviture?
 
-# Note that hhs start off life with B = 1... so no wonder it stays fixed at that level forever.
-# Seems issue in solution method, since policy fcns make no sense
+# Plot frequency of early withdrawals
+ew_mean = mean(ewpath, dims =2)
+plot( [1:length(ewpath[:, 1])], ew_mean, linewidth = 2, label = "Early Withdrawal")
 
 # Plot Life Cycle Profile for 3 HHs
-for ixHH = 1:3
+for ixHH = [1, 994] #  994:994
     plt = plot([1:length(cpath[:,  1])], cpath[:, ixHH],linewidth = 2, label = "Consumption")
     plt = plot!([1:length(apath[:, 1])], apath[:, ixHH], linewidth = 2, label="Liq Assets")
     plt = plot!([1:length(bpath[:, 1])], bpath[:, ixHH], linewidth = 2, label="Illiq Assets")
     plt = plot!([1:length(ypath[:, 1])], ypath[:, ixHH],linewidth = 2, label = "Income", xlabel="Age", title="Household "*string(ixHH))
+
+    # Shade early withdrawal
+    # plt = plot!([1:length(ewpath[:, 1])], ewpath[:, ixHH],linewidth = 2, label = "Early Withdrawal")
+    # plt = vspan!(collect(1:T)[ewpath[:, ixHH] .== 1.0]; alpha = 0.2, label = "Early Withdrawal")
+    plt = vspan!( [[i-.5, i+.5] for i=1:T][ewpath[:, ixHH] .== 1.0]; alpha = 0.1, color = :gray, label ="") #, label = "Early Withdrawal")
+
     display(plt)
 end
+
+# Can I shade early withdrawal?
 
 # Plot Average Life Cycle Profiles
 cpath_mean = mean(cpath, dims = 2)
