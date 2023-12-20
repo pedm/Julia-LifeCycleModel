@@ -31,17 +31,27 @@ end
     return value
 end
 
-@everywhere function transaction_costs(params, ixt, B1, B0)
+@everywhere function transaction_costs(params, ixt, Tretire, B1, B0)
 
     # Most realistic: Only have a fee if withdrawing:
     # TODO: maybe later: want to have some subsidy to contributions
 
     # TODO: should define B1_default
-    B1_default = B0 * (1.0+params["r_b"])
+    B1_default = B0 * params["R_b"]
 
-    if isapprox(B1_default, B1) # | (ixt >= Tretire)
+    # Orig version: 
+    # if isapprox(B1_default, B1)
+    #     return 0.0
+    # elseif B1 < B0 # B1_default
+    #     early_withdrawal = abs(B1 - B1_default) # TODO: might not need that abs()
+    #     return params["adj_cost_fixed"] + params["adj_cost_prop"] * early_withdrawal 
+    # else
+    #     return 0.0
+    # end
+
+    if isapprox(B1_default, B1) | (ixt >= Tretire)
         return 0.0
-    elseif B1 < B0 # B1_default
+    elseif B1 < B1_default
         early_withdrawal = abs(B1 - B1_default) # TODO: might not need that abs()
         return params["adj_cost_fixed"] + params["adj_cost_prop"] * early_withdrawal 
     else

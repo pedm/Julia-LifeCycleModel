@@ -1,5 +1,7 @@
-function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fixed = 0.1, 
-    det_inc = true)
+function setpar(;beta = 0.95, gamma = 1.5, 
+                r_b = 0.04, r = 0.04, 
+                adj_cost = true, adj_cost_fixed = 0.1, adj_cost_prop = 0.5, 
+                det_inc = true, rho = 0.95)
 
     # Define the parameters as a dictionary
     # TODO: create a Dict of various objects (params, objs, etc)
@@ -11,11 +13,11 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fi
     # Returns
     # params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
     params["r_b"]              = r_b
-    params["r"]                = r     # Interest rate
+    params["r"]                = r     # Liquid interest rate
 
     # Preferences 
     params["beta"]             = beta                # 1/(1+r) # Discount factor
-    params["gamma"]            = 1.5                 # Coefficient of relative risk aversion
+    params["gamma"]            = gamma               # Coefficient of relative risk aversion
     params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
     params["startA"]           = 0.0                 # How much asset do people start life with
 
@@ -23,15 +25,13 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fi
     params["mu"]               = 0.0                 # mean of initial log income
     params["sigma"]            = 0.2                 # variance of innovations to log income
     # params["sigma"]            = 0.01                # variance of innovations to log income
-    params["rho"]              = 0.75                 # persistency of log income
+    params["rho"]              = rho                 # persistency of log income
     params["Yretire"]          = 0.5
 
     # Retirement account
     if adj_cost
-        # params["adj_cost_fixed"]   = 0.1                 # fixed cost to adjust the illiquid asset - about 5% of avg annual income as the fixed cost
-        # params["adj_cost_prop"]    = 0.1                 # proportional cost to adjust the illiquid asset
-        params["adj_cost_fixed"]   = adj_cost_fixed
-        params["adj_cost_prop"]    = 0.4
+        params["adj_cost_fixed"]   = adj_cost_fixed        # fixed cost to adjust the illiquid asset
+        params["adj_cost_prop"]    = adj_cost_prop         # proportional cost to adjust the illiquid asset
     else
         # No adj costs:
         params["adj_cost_fixed"]   = 0.0 
@@ -50,6 +50,10 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fi
         params["inc_reg_age2"]     = 0.0
         params["inc_reg_age3"]     = 0.0
     end
+
+    # Simplifications: do once now, rather than many times later
+    # But have to be careful to only set params using this function
+    params["R_b"] = 1.0 + params["r_b"]
 
     return params
 
@@ -134,6 +138,28 @@ function setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost = true, adj_cost_fi
 
 end
 
+function setmodel(;T = 10, args...)
+    model                     = Dict{String, Any}()
+
+    println(args)
+
+    # Model Structure
+    ints                     = Dict{String, Int64}()
+    # ints["T"]                    = 60                  # Number of time period
+    # ints["Tretire"]              = 45                  # Age at which retirement happens
+    ints["T"]                    = T                  # Number of time period
+    ints["Tretire"]              = 7                  # Age at which retirement happens
+    ints["numPointsY"]           = 5                   # number of points in the income grid
+    ints["numPointsA"]           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
+    ints["numPointsB"]           = 50                  # number of points in the discretised asset grid
+    ints["numSims"]              = 1000                # How many individuals to simulate
+
+    params = setpar(;args...)
+    model["ints"] = ints
+    model["params"] = params
+
+    return model 
+end
 # Immutable struct:
 # par = benchpar()
 # par.β

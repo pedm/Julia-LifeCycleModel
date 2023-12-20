@@ -1,5 +1,9 @@
 
-function getMinAndMaxAss(params, minInc, maxInc)
+function getMinAndMaxAss(model, minInc, maxInc)
+
+    params     = model["params"]
+    ints       = model["ints"]
+    T          = ints["T"]
 
     ## ------------------------------------------------------------------------
     # Initialise the output matrices
@@ -82,18 +86,7 @@ function getGrid(minongrid, maxongrid, GridPoints, method)
     end
 end
 
-
-function getIncomeGrid(params)
-
-    # A function that returns:
-    # 1. an income grid
-    # 2. A Markovian transition matrix (Q) over income realisations
-    # 3. A vector of minimum incomes in each year
-    # 4. A vector of maximum incomes in each year
-
-    #----------------------------------------#
-    # Scenario where there is uncertainty - income draws are log normally distributed
-    #----------------------------------------#
+function tauchen(params)
 
     # First get the standard deviation of income (from sigma and rho) (note: this is standard deviation of income in the steady state)
     # We confirmed in Adda & Cooper that this is indeed std and not variance
@@ -125,9 +118,37 @@ function getIncomeGrid(params)
         Q[i, :] = Q[i, :] ./ sum(Q[i, :])
     end #i
 
-    Z = exp.(lZ);                      # Get y from log y
-    minZ = exp(-normBnd * sig_inc); #Get the minimum income in each year # NOTE: are we missing mu here? Cormac bug ??
-    maxZ = exp(normBnd * sig_inc);  #Get the maximum income in each year
+    return lZ, Q 
+end
+
+function getIncomeGrid(model)
+
+    # A function that returns:
+    # 1. an income grid
+    # 2. A Markovian transition matrix (Q) over income realisations
+    # 3. A vector of minimum incomes in each year
+    # 4. A vector of maximum incomes in each year
+
+    params     = model["params"]
+    ints       = model["ints"]
+    T          = ints["T"]
+    Tretire    = ints["Tretire"]
+    numPointsY = ints["numPointsY"]
+    numPointsA = ints["numPointsA"]
+    numPointsB = ints["numPointsB"]
+    numSims    = ints["numSims"]
+
+    #----------------------------------------#
+    # Income draws are log normally distributed
+    #----------------------------------------#
+    sig_inc = compute_sig_inc(params)
+
+    # lZ, Q = tauchen(params)
+    lZ, Q = rouwenhorst(numPointsY, params["rho"], params["sigma"])
+
+    Z = exp.(lZ);                   # Get y from log y
+    minZ = exp(-normBnd * sig_inc); # Get the minimum income in each year # NOTE: are we missing mu here? Cormac bug ??
+    maxZ = exp(normBnd * sig_inc);  # Get the maximum income in each year
 
     if (Z[1] < 1e-4) || (Z[ numPointsY ] > 1e5)
         warn("Combination of sigma and rho give a very high income variance. Numerical instability possible", once = true)
@@ -189,6 +210,25 @@ function getIncomeGrid(params)
 
     return Ygrid, Q, minInc, maxInc, det_income
 
+end
+
+function getAssetGrid(model)
+
+    params     = model["params"]
+    ints       = model["ints"]
+    T          = ints["T"]
+    numPointsA = ints["numPointsA"]
+    numPointsB = ints["numPointsB"]
+    
+    MinAss, MaxAss, MaxB = getMinAndMaxAss(model, minInc, maxInc)
+    Agrid = zeros(T+1, numPointsA)
+    Bgrid = zeros(T+1, numPointsB)
+    for ixt = 1:1:T+1
+        Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
+        Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxB[ixt], numPointsB, gridMethod)
+    end
+
+    return Agrid, Bgrid
 end
 
 function compute_sig_inc(params::Dict{String,Float64})

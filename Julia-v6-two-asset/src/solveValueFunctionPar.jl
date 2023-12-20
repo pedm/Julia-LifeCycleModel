@@ -1,4 +1,15 @@
-function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid, incTransitionMrx)
+function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
+
+    # Define model objects
+    params     = model["params"]
+    ints       = model["ints"]
+    T          = ints["T"]
+    Tretire    = ints["Tretire"]
+    numPointsY = ints["numPointsY"]
+    numPointsA = ints["numPointsA"]
+    numPointsB = ints["numPointsB"]
+    # numSims    = ints["numSims"]
+
     # Define params
     minCons     = params["minCons"]
     r           = params["r"]
@@ -146,7 +157,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                     # Define a_star as middle-of-period liquid assets (i.e. what you have after adjusting your illiquid assets)
                     function a_tilde(B1) # middle-of-period liquid assets
-                        return R_a*A0 + R_b*B0 + Y0 - transaction_costs(params, ixt, B1, B0) - B1
+                        return R_a*A0 + R_b*B0 + Y0 - transaction_costs(params, ixt, Tretire, B1, B0) - B1
                     end
 
                     # define obj fcn (Seb Graves' Vtilde)
@@ -176,7 +187,7 @@ function solveValueFunctionPar(params::Dict{String,Float64}, Agrid, Bgrid, Ygrid
 
                     # Choose upper and lower bound for illiquid assets tomorrow
                     lbB1     = Bgrid[ixt + 1, 1]           
-                    ubB1_max = minCons + R_a*A0 + R_b*B0 + Y0 # - transaction_costs(params, ixt, 0.0, B0)  # NOT SURE THIS IS RIGHT !
+                    ubB1_max = minCons + R_a*A0 + R_b*B0 + Y0 # - transaction_costs(params, ixt, Tretire, 0.0, B0)  # NOT SURE THIS IS RIGHT !
                     # GOAL of ubB1: Ensure that a_tilde(B1) >= 0
 
                     if (ubB1_max - lbB1 < minCons)        # issue - look into this!

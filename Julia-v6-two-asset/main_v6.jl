@@ -34,38 +34,32 @@ include("src/model.jl")
 include("src/modelEulerEquation.jl")
 include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
+include("src/rouwenhorst/rouwenhorst.jl")
+
 
 ################################################################################
 ## Define parameters and constants
 ################################################################################
 
 # Test 1: do they only use the liquid asset?
-# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, det_inc = false)
+# Note: also helps to make transaction cost apply after retirement too
+model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75)
 
 # Test 2: do they only use the illiquid asset?
-# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false)
+# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false, rho = 0.75)
 
 # Now add hump shaped income profile
-params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
+# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
 
 # Baseline: do they use some mix of both?
-# params = setpar(;beta = 0.95, r_b = 0.05, r = 0.0)
-
+# model = setmodel(;beta = 0.95, gamma = 2, r_b = 0.04, r = 0.0)
 
 # Constants
 const interpMethod         = "linear"            # for now, I only allow linear option
-# const T                    = 60                  # Number of time period
-# const Tretire              = 45                  # Age at which retirement happens
-const T                    = 10                  # Number of time period
-const Tretire              = 7                  # Age at which retirement happens
 const borrowingAllowed     = 0                   # allow borrowing
 const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const numPointsY           = 5                   # number of points in the income grid
-const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
-const numPointsB           = 50                  # number of points in the discretised asset grid
 const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
 const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
-const numSims              = 100                  # How many individuals to simulate
 const useEulerEquation     = false               # Solve the model using the euler equation?
 const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
 const linearise            = true               # Whether to linearise the slope of EdU when using EE
@@ -76,16 +70,10 @@ const extrap_sim           = true
 ################################################################################
 
 # Get income grid
-Ygrid, incTransitionMrx, minInc, maxInc, det_income = getIncomeGrid(params)
+Ygrid, incTransitionMrx, minInc, maxInc, det_income = getIncomeGrid(model)
 
 # Get asset grids
-MinAss, MaxAss, MaxB = getMinAndMaxAss(params, minInc, maxInc)
-Agrid = zeros(T+1, numPointsA)
-Bgrid = zeros(T+1, numPointsB)
-for ixt = 1:1:T+1
-    Agrid[ixt, :] = getGrid(MinAss[ixt], MaxAss[ixt], numPointsA, gridMethod)
-    Bgrid[ixt, :] = getGrid(MinAss[ixt], MaxB[ixt], numPointsB, gridMethod)
-end
+Agrid, Bgrid = getAssetGrid(model)
 
 # for k in 1:3, j in 1:3, i in 1:3
 #     @show (i, j, k)
@@ -96,14 +84,16 @@ end
 ################################################################################
 
 println("Solve Value Function: Parallel")
-@time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(params, Agrid, Bgrid, Ygrid, incTransitionMrx)
+@time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
+@time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
 # NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
 
 ################################################################################
 ## Simulate
 ################################################################################
 
-@time cpath, apath, bpath, vpath, ypath = simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+@time cpath, apath, bpath, vpath, ypath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+@time cpath, apath, bpath, vpath, ypath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
 
 
@@ -111,14 +101,22 @@ println("Solve Value Function: Parallel")
 # LATER: Tests
 ################################################################################
 
+ints       = model["ints"]
+T          = ints["T"]
+Tretire    = ints["Tretire"]
+numPointsY = ints["numPointsY"]
+numPointsA = ints["numPointsA"]
+numPointsB = ints["numPointsB"]
+numSims    = ints["numSims"]
+
 # For Test #1: this should be zero everywhere
-[maximum(policyB1[t, :, 1, :]) for t = 1:T]
+[maximum(policyB1[t, :, 1, :]) for t = 1:T ]
 # [maximum(policyB1[t, 1:40, 1, :]) for t = 1:T] # at least it's zero when ppl have very little
 
 # Note that the above works when there's no fixed cost... but fails when there is a fixed cost (due to non-convexities)
 
 # Alt Test 1: do they only use the liquid asset? (more difficult b/c the fixed cost introduces non-convexities, which )
-# params = setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost_fixed = 0.1)
+# model = setpar(;beta = 0.95, r_b = 0.04, r = 0.04, adj_cost_fixed = 0.1)
 
 # For Test 2:
 # [maximum(policyA1[t, 1, 1:numPointsB-10, :]) for t = 1:T]

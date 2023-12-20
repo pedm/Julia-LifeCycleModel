@@ -1,11 +1,20 @@
 
 
-function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
+function simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
     # (policyA1,EV,startA)
 
     # This function takes the policy functions and value functions, along with
     # starting assets and returns simulated paths of income, consumption,
     # assets and value
+
+    params     = model["params"]
+    ints       = model["ints"]
+    T          = ints["T"]
+    Tretire    = ints["Tretire"]
+    numPointsY = ints["numPointsY"]
+    numPointsA = ints["numPointsA"]
+    numPointsB = ints["numPointsB"]
+    numSims    = ints["numSims"]
 
     ## ------------------------------------------------------------------------
     # Define parameters
@@ -175,8 +184,8 @@ function simWithUncer(params, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
             # end
 
             # Get consumption from today's assets, today's income and tomorrow's optimal assets
-            # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(params, t, b[t+1, s], b[t, s]) 
-            c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(params, t, b[t+1, s], b[t, s]) 
+            # c[t, s] = a[t, s]  + y[t, s] - (a[t+1, s]/(1+r)) + b[t, s] - (b[t+1, s]/(1+params["r_b"])) - transaction_costs(params, t, Tretire, b[t+1, s], b[t, s]) 
+            c[t, s] = (1.0+r)*a[t, s]  + y[t, s] - a[t+1, s] + (1+params["r_b"])*b[t, s] - b[t+1, s] - transaction_costs(params, t, Tretire, b[t+1, s], b[t, s]) 
             # NOTE: is it better to get the returns at the start or end of the period? Not sure... 
             
         end # s
@@ -212,7 +221,7 @@ function checkSimExtrap( Ygrid, lba1, y )
     # level. Otherwise it is likely that there is an error - and in this case
     # we cause the programme to stop
 
-    if (y > Ygrid[numPointsY]) || (y < Ygrid[1])
+    if (y > Ygrid[end]) || (y < Ygrid[1])
         a1 = lba1;
     else
         println( lba1, y )
