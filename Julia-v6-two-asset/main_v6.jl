@@ -1,13 +1,4 @@
-## Simple Life Cycle Model of Consumption and Savings
-
-# Model v1: finite consumption saving endowment problem
-# Model v3: add deterministic income stream
-# Model v5: realistic income uncertainty
-# Model v6: liquid and illiquid assets
-
-# This code was written in Julia v0.6.2 in September 2017.
-# Updated for Julia v1.8 in April 2023.
-# This code is designed to be easy to understand, not to be as fast as possible
+## Life Cycle Model of Consumption and Savings with Two Assets
 
 ################################################################################
 ## Load packages
@@ -36,7 +27,6 @@ include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
 include("src/rouwenhorst/rouwenhorst.jl")
 
-
 ################################################################################
 ## Define parameters and constants
 ################################################################################
@@ -46,17 +36,19 @@ include("src/rouwenhorst/rouwenhorst.jl")
 # model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75)
 
 # Test 2: do they only use the illiquid asset?
-model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false, rho = 0.75)
+# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false, rho = 0.75)
 
 # Now add hump shaped income profile
 # model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
 
 # Baseline: do they use some mix of both?
-# model = setmodel(;beta = 0.95, gamma = 2, r_b = 0.04, r = 0.0)
+model = setmodel(;beta = 0.95, gamma = 2, r_b = 0.04, r = 0.0)
 
 # Constants
-const T                    = 10                  # Number of time period
-const Tretire              = 7                   # Age at which retirement happens
+# const T                    = 10                  # Number of time period
+# const Tretire              = 7                   # Age at which retirement happens
+const T                    = 60                  # Number of time period
+const Tretire              = 45                   # Age at which retirement happens
 const numPointsY           = 5                   # number of points in the income grid
 const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
 const numPointsB           = 50                  # number of points in the discretised asset grid
@@ -192,7 +184,7 @@ ew_mean = mean(ewpath, dims =2)
 plot( [1:length(ewpath[:, 1])], ew_mean, linewidth = 2, label = "Early Withdrawal")
 
 # Plot Life Cycle Profile for 3 HHs
-for ixHH = [1, 994] #  994:994
+for ixHH = 1:3 # [1, 994] #  994:994
     plt = plot([1:length(cpath[:,  1])], cpath[:, ixHH],linewidth = 2, label = "Consumption")
     plt = plot!([1:length(apath[:, 1])], apath[:, ixHH], linewidth = 2, label="Liq Assets")
     plt = plot!([1:length(bpath[:, 1])], bpath[:, ixHH], linewidth = 2, label="Illiq Assets")
@@ -205,8 +197,6 @@ for ixHH = [1, 994] #  994:994
 
     display(plt)
 end
-
-# Can I shade early withdrawal?
 
 # Plot Average Life Cycle Profiles
 cpath_mean = mean(cpath, dims = 2)

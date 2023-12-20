@@ -137,8 +137,7 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
         println("Step 2")
         # STEP 2. Outer problem to find optimal illqiuid assets
         # ---------------------------------------------------------
-        # Threads.@threads 
-        for ixB0 = 1:1:numPointsB       # points on illiq asset grid
+        Threads.@threads for ixB0 = 1:1:numPointsB       # points on illiq asset grid
             for ixY = 1:numPointsY                       # points on income grid
 
                 Y0              = Ygrid[ixt, ixY]  # income today
