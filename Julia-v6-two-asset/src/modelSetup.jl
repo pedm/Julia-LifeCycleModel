@@ -2,8 +2,8 @@
 function getMinAndMaxAss(model, minInc, maxInc)
 
     params     = model["params"]
-    ints       = model["ints"]
-    T          = ints["T"]
+    # ints       = model["ints"]
+    # T          = ints["T"]
 
     ## ------------------------------------------------------------------------
     # Initialise the output matrices
@@ -130,13 +130,13 @@ function getIncomeGrid(model)
     # 4. A vector of maximum incomes in each year
 
     params     = model["params"]
-    ints       = model["ints"]
-    T          = ints["T"]
-    Tretire    = ints["Tretire"]
-    numPointsY = ints["numPointsY"]
-    numPointsA = ints["numPointsA"]
-    numPointsB = ints["numPointsB"]
-    numSims    = ints["numSims"]
+    # ints       = model["ints"]
+    # T          = ints["T"]
+    # Tretire    = ints["Tretire"]
+    # numPointsY = ints["numPointsY"]
+    # numPointsA = ints["numPointsA"]
+    # numPointsB = ints["numPointsB"]
+    # numSims    = ints["numSims"]
 
     #----------------------------------------#
     # Income draws are log normally distributed
@@ -215,10 +215,10 @@ end
 function getAssetGrid(model)
 
     params     = model["params"]
-    ints       = model["ints"]
-    T          = ints["T"]
-    numPointsA = ints["numPointsA"]
-    numPointsB = ints["numPointsB"]
+    # ints       = model["ints"]
+    # T          = ints["T"]
+    # numPointsA = ints["numPointsA"]
+    # numPointsB = ints["numPointsB"]
     
     MinAss, MaxAss, MaxB = getMinAndMaxAss(model, minInc, maxInc)
     Agrid = zeros(T+1, numPointsA)

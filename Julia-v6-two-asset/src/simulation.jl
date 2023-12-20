@@ -9,11 +9,11 @@ function simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
     params     = model["params"]
     ints       = model["ints"]
-    T          = ints["T"]
-    Tretire    = ints["Tretire"]
-    numPointsY = ints["numPointsY"]
-    numPointsA = ints["numPointsA"]
-    numPointsB = ints["numPointsB"]
+    # T          = ints["T"]
+    # Tretire    = ints["Tretire"]
+    # numPointsY = ints["numPointsY"]
+    # numPointsA = ints["numPointsA"]
+    # numPointsB = ints["numPointsB"]
     numSims    = ints["numSims"]
 
     ## ------------------------------------------------------------------------

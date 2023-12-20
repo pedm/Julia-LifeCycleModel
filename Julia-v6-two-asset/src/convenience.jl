@@ -1,3 +1,14 @@
+# Set constants in the background
+const interpMethod         = "linear"            # for now, I only allow linear option
+const borrowingAllowed     = 0                   # allow borrowing
+const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
+const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
+const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
+const useEulerEquation     = false               # Solve the model using the euler equation?
+const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
+const linearise            = true               # Whether to linearise the slope of EdU when using EE
+const extrap_sim           = true
+
 function setpar(;beta = 0.95, gamma = 1.5, 
                 r_b = 0.04, r = 0.04, 
                 adj_cost = true, adj_cost_fixed = 0.1, adj_cost_prop = 0.5, 
@@ -138,7 +149,7 @@ function setpar(;beta = 0.95, gamma = 1.5,
 
 end
 
-function setmodel(;T = 10, args...)
+function setmodel(; args...)
     model                     = Dict{String, Any}()
 
     println(args)
@@ -147,11 +158,11 @@ function setmodel(;T = 10, args...)
     ints                     = Dict{String, Int64}()
     # ints["T"]                    = 60                  # Number of time period
     # ints["Tretire"]              = 45                  # Age at which retirement happens
-    ints["T"]                    = T                  # Number of time period
-    ints["Tretire"]              = 7                  # Age at which retirement happens
-    ints["numPointsY"]           = 5                   # number of points in the income grid
-    ints["numPointsA"]           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
-    ints["numPointsB"]           = 50                  # number of points in the discretised asset grid
+    # ints["T"]                    = T                  # Number of time period
+    # ints["Tretire"]              = 7                  # Age at which retirement happens
+    # ints["numPointsY"]           = 5                   # number of points in the income grid
+    # ints["numPointsA"]           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
+    # ints["numPointsB"]           = 50                  # number of points in the discretised asset grid
     ints["numSims"]              = 1000                # How many individuals to simulate
 
     params = setpar(;args...)

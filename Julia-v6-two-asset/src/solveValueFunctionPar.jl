@@ -2,12 +2,12 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
 
     # Define model objects
     params     = model["params"]
-    ints       = model["ints"]
-    T          = ints["T"]
-    Tretire    = ints["Tretire"]
-    numPointsY = ints["numPointsY"]
-    numPointsA = ints["numPointsA"]
-    numPointsB = ints["numPointsB"]
+    # ints       = model["ints"]
+    # T          = ints["T"]
+    # Tretire    = ints["Tretire"]
+    # numPointsY = ints["numPointsY"]
+    # numPointsA = ints["numPointsA"]
+    # numPointsB = ints["numPointsB"]
     # numSims    = ints["numSims"]
 
     # Define params

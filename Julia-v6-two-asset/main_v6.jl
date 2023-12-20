@@ -55,15 +55,12 @@ model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_c
 # model = setmodel(;beta = 0.95, gamma = 2, r_b = 0.04, r = 0.0)
 
 # Constants
-const interpMethod         = "linear"            # for now, I only allow linear option
-const borrowingAllowed     = 0                   # allow borrowing
-const isUncertainty        = 1                   # uncertain income (currently: only works if isUncertainty == 1)
-const gridMethod           = "5logsteps"         # method to construct grid. One of equalsteps or 5logsteps
-const normBnd              = 3                   # truncate the normal distrib: ignore draws less than -NormalTunc*sigma and greater than normalTrunc*sigma
-const useEulerEquation     = false               # Solve the model using the euler equation?
-const saveValue_inEE       = true               # When using euler equation to solve the model, do we want to compute EV? (Note: adds time due to interpolation)
-const linearise            = true               # Whether to linearise the slope of EdU when using EE
-const extrap_sim           = true
+const T                    = 10                  # Number of time period
+const Tretire              = 7                   # Age at which retirement happens
+const numPointsY           = 5                   # number of points in the income grid
+const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
+const numPointsB           = 50                  # number of points in the discretised asset grid
+
 
 ################################################################################
 ## Setup Model
@@ -85,8 +82,8 @@ Agrid, Bgrid = getAssetGrid(model)
 
 println("Solve Value Function: Parallel")
 @time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
-@time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
-# NOTE: evaluation time will be faster if you run it a second time, due to just in time compilation
+# @time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
+
 
 ################################################################################
 ## Simulate
@@ -100,14 +97,6 @@ println("Solve Value Function: Parallel")
 ################################################################################
 # LATER: Tests
 ################################################################################
-
-ints       = model["ints"]
-T          = ints["T"]
-Tretire    = ints["Tretire"]
-numPointsY = ints["numPointsY"]
-numPointsA = ints["numPointsA"]
-numPointsB = ints["numPointsB"]
-numSims    = ints["numSims"]
 
 # For Test #1: this should be zero everywhere
 [maximum(policyB1[t, :, 1, :]) for t = 1:T ]
