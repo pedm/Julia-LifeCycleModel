@@ -28,31 +28,54 @@ include("src/simulation.jl")
 include("src/rouwenhorst/rouwenhorst.jl")
 
 ################################################################################
-## Define parameters and constants
+## Test Cases
 ################################################################################
+
 
 # Test 1: do they only use the liquid asset?
 # Note: must make transaction cost apply after retirement too
-# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75)
+# model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75, adj_cost_post_ret = true)
 
 # Test 2: do they only use the illiquid asset?
 # model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false, det_inc = false, rho = 0.75)
 
+# Test 3: they should put nothing in the illiquid account.... what's going on here !??
+# model = setmodel(;beta = 0.95, r_b = 0.04, r = 0.05, adj_cost_fixed = 0.2, adj_cost_prop = 0.8, det_inc = false, rho = 0.2)
+
+# Test 4: they should put nothing in the illiquid account when it's return dominated
+# model = setmodel(;beta = 0.95, r_b = 0.02, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.0, det_inc = false, rho = 0.2)
+
+# Test 1 w/ temptation: given equal returns, do they use ret account when tempted?
+# model = setmodel(;beta = 0.95, lambda = 0.2, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.4, det_inc = false, rho = 0.75, adj_cost_post_ret = true)
+# model = setmodel(;beta = 0.95, lambda = 0.1, r_b = 0.05, r = 0.05, adj_cost_fixed = 0.0, adj_cost_prop = 0.6, det_inc = false)
+
+################################################################################
+# Full Model
+################################################################################
+
 # Now add hump shaped income profile
 # model = setmodel(;beta = 0.95, r_b = 0.05, r = 0.0, adj_cost = false)
 
-# Baseline: do they use some mix of both?
-model = setmodel(;beta = 0.95, gamma = 2, r_b = 0.04, r = 0.0)
+# Model w/out Temptation
+model = setmodel(;beta = 0.95, gamma = 1.5, r_b = 0.04, r = 0.0)
 
+# Model w/ Temptation
+# model = setmodel(;beta = 0.95, lambda = 0.2, gamma = 1.5, r_b = 0.04, r = 0.0)
+
+################################################################################
 # Constants
+################################################################################
+
+## If test cases:
 # const T                    = 10                  # Number of time period
 # const Tretire              = 7                   # Age at which retirement happens
+
+## If full model:
 const T                    = 60                  # Number of time period
 const Tretire              = 45                   # Age at which retirement happens
 const numPointsY           = 5                   # number of points in the income grid
 const numPointsA           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
 const numPointsB           = 50                  # number of points in the discretised asset grid
-
 
 ################################################################################
 ## Setup Model
@@ -64,27 +87,16 @@ Ygrid, incTransitionMrx, minInc, maxInc, det_income = getIncomeGrid(model)
 # Get asset grids
 Agrid, Bgrid = getAssetGrid(model)
 
-# for k in 1:3, j in 1:3, i in 1:3
-#     @show (i, j, k)
-# end
-
 ################################################################################
-## Solve
+## Solve & Simulate
 ################################################################################
 
 println("Solve Value Function: Parallel")
 @time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
 # @time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
 
-
-################################################################################
-## Simulate
-################################################################################
-
 @time cpath, apath, bpath, vpath, ypath, ewpath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 # @time cpath, apath, bpath, vpath, ypath, ewpath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
-
-
 
 ################################################################################
 # LATER: Tests
@@ -105,7 +117,6 @@ println("Solve Value Function: Parallel")
 ################################################################################
 ## Plot
 ################################################################################
-
 
 # Plot Policy Fcn
 ixt = T-1
@@ -181,7 +192,9 @@ plot!(minimum(apath, dims = 2))
 
 # Plot frequency of early withdrawals
 ew_mean = mean(ewpath, dims =2)
-plot( [1:length(ewpath[:, 1])], ew_mean, linewidth = 2, label = "Early Withdrawal")
+plt = plot( [1:length(ewpath[:, 1])], ew_mean, linewidth = 2, label = "Early Withdrawal")
+display(plt)
+
 
 # Plot Life Cycle Profile for 3 HHs
 for ixHH = 1:3 # [1, 994] #  994:994

@@ -9,10 +9,10 @@ const saveValue_inEE       = true               # When using euler equation to s
 const linearise            = true               # Whether to linearise the slope of EdU when using EE
 const extrap_sim           = true
 
-function setpar(;beta = 0.95, gamma = 1.5, 
+function setpar(;beta = 0.95, lambda = 0.0, gamma = 1.5, 
                 r_b = 0.04, r = 0.04, 
-                adj_cost = true, adj_cost_fixed = 0.1, adj_cost_prop = 0.5, 
-                det_inc = true, rho = 0.95)
+                adj_cost = true, adj_cost_fixed = 0.2, adj_cost_prop = 0.2, adj_cost_post_ret = false,
+                det_inc = true, rho = 0.96)
 
     # Define the parameters as a dictionary
     # TODO: create a Dict of various objects (params, objs, etc)
@@ -29,12 +29,14 @@ function setpar(;beta = 0.95, gamma = 1.5,
     # Preferences 
     params["beta"]             = beta                # 1/(1+r) # Discount factor
     params["gamma"]            = gamma               # Coefficient of relative risk aversion
+    params["lambda"]           = lambda
     params["gamma_mod"]        = 1.0-params["gamma"] # For speed, just do this once
     params["startA"]           = 0.0                 # How much asset do people start life with
 
     # Income process
     params["mu"]               = 0.0                 # mean of initial log income
     params["sigma"]            = 0.2                 # variance of innovations to log income
+    params["sigma0"]           = 0.4                 # variance of innovations to initial log income
     # params["sigma"]            = 0.01                # variance of innovations to log income
     params["rho"]              = rho                 # persistency of log income
     params["Yretire"]          = 0.5
@@ -49,6 +51,16 @@ function setpar(;beta = 0.95, gamma = 1.5,
         params["adj_cost_prop"]    = 0.0
     end
 
+    # Adjustment costs post retirement -- usually zero!
+    if adj_cost_post_ret
+        params["ret_adj_cost_fixed"]   = adj_cost_fixed        # fixed cost to adjust the illiquid asset
+        params["ret_adj_cost_prop"]    = adj_cost_prop         # proportional cost to adjust the illiquid asset
+    else
+        # No adj costs:
+        params["ret_adj_cost_fixed"]   = 0.0 
+        params["ret_adj_cost_prop"]    = 0.0
+    end
+    
     # Income Polynomial: same as Kovacs Moran
     params["inc_reg_constant"] = 8.200711172
     if det_inc
