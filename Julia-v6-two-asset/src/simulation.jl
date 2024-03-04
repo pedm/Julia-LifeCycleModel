@@ -53,7 +53,7 @@ function simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
     seed2 = 234636;  # For initial income
     sig_inc = compute_sig_inc(params)
     e       = getNormalDraws( 0.0, sigma, T, numSims, seed1);    # normally distributed random draws for the innovation # NOTE: we actually just need Tretire
-    logZ1   = getNormalDraws( mu, sig_inc, 1, numSims, seed2); # a random draw for the initial income
+    logZ1   = getNormalDraws( mu, sigma, 1, numSims, seed2); # a random draw for the initial income
     # Later might replace sig_inc with 
 
     # Get all the incomes, recursively

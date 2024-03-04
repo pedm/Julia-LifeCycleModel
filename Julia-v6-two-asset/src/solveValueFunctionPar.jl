@@ -2,13 +2,6 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
 
     # Define model objects
     params     = model["params"]
-    # ints       = model["ints"]
-    # T          = ints["T"]
-    # Tretire    = ints["Tretire"]
-    # numPointsY = ints["numPointsY"]
-    # numPointsA = ints["numPointsA"]
-    # numPointsB = ints["numPointsB"]
-    # numSims    = ints["numSims"]
 
     # Define params
     minCons     = params["minCons"]
@@ -65,71 +58,58 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
         # ---------------------------------------------------------
         println("Step 1")
         Threads.@threads for ixB1 = 1:1:numPointsB      # points on illiq asset grid
-        # for ixB0 = 1:1:numPointsB      # points on illiq asset grid
-            B1     = Bgrid1[ixB1]            # start-of-period illiq. assets
+            B1     = Bgrid1[ixB1]                       # end-of-period illiq. assets
 
             for ixY = 1:numPointsY                      # points on income grid
-
-                # define interpolation function itp - note does not depend on ixA0
-                # nodes = (Agrid1,)
-                # EV1  = EV[ixt + 1, :, ixB0, ixY]         # relevant section of EV matrix (in assets tomorrow)
-                # itp = interpolate(nodes, EV1, Gridded(Linear()))
-                # WARNING: currently I'm selecting B1 using ixB0... but the grid changes from one period to the next (!) so this doesn't actually maintain the same exact B1 = B0 !!!!
-                # TODO: might need to do a 2D interpolation here!!!
                 
                 # Needed b/c Bgrid[ixt, ixB0] does not equal Bgrid[ixt+1, ixB0] -- might think later about some trick to do this
                 nodes = (Agrid1,Bgrid1,)
                 EV1   = EV[ixt + 1, :, :, ixY]         # relevant section of EV matrix (in assets tomorrow)
                 EV_fcn = interpolate(nodes, EV1, Gridded(Linear()))
-
-                # NOTE: Y0 no longer needed for the inner problem
-                # Ah but that doesn't save us any computational time because EV still depends on ixY
-                Y0              = Ygrid[ixt, ixY]                                    # income today
+                Y0     = Ygrid[ixt, ixY]               # income today
                 
-                # maybe better to define Lgrid here and then loop over ixL0
                 for ixAtilde = 1:numPointsA               # points on liq asset grid
 
                     Atilde    = Agrid1[ixAtilde]         # middle-of-period liquid assets
                     lbA1      = Agrid1[1]                # lower bound: assets tomorrow
                     ubA1      = Atilde - minCons         # upper bound: assets tomorrow
 
+                    # Define most tempting consumption alternative:
+                    A1_tempt = 0.0
+                    B1_tempt = 0.0
+                    c_tempt_liq = Atilde  + Y0 - A1_tempt
+                    c_tempt_extract = (1.0+r)*Atilde  + Y0 - A1_tempt + B1 - B1_tempt - transaction_costs(params, ixt, Tretire, B1_tempt, B1)
+                    c_tempt = max(c_tempt_liq, c_tempt_extract)
+
                     # Compute solution
-                    if (ubA1 - lbA1 < minCons)        # if liquidity constrained
-                        # println([lbA1, ubA1])
-                        
-                        negV = - ( utility(params, minCons) + params["beta"] * EV_fcn[lbA1, B1] )
+                    if (ubA1 - lbA1 < minCons)        
+                        # if liquidity constrained
+                        negV = - ( utility(params, minCons, c_tempt) + params["beta"] * EV_fcn[lbA1, B1] )
                         policyA1_NA[ixt,ixAtilde,ixB1,ixY] = lbA1
 
-                        # println("wait - does this part work?")
                     else
+                        # If not liquidity constrained :
                         # Find the A1 that minimizes the objective function
 
                         # define obj fcn
                         function obj(A1::Float64)
-                            return objectivefunc(params, EV_fcn, A1, Atilde, B1)
+                            return objectivefunc(params, EV_fcn, A1, Atilde, B1, c_tempt)
                         end
-
-                        # try 
-                        #     Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
-                        # catch
-                        #     println("ERROR")
-                        #     println([lbA1,ubA1])
-                        #     Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
-                        # end
 
                         Res = optimize(obj,lbA1,ubA1, abs_tol = 1e-5)          # println(Res)
                         policyA1_NA[ixt,ixAtilde,ixB1,ixY] = Res.minimizer
                         negV = Res.minimum     # if interior solution
                     end # if (ubA1 - lbA1 < minCons)
 
-                    # Store solution and its value
+                    # Store value conditional on not adjusting:
                     V_NA[ixt, ixAtilde, ixB1, ixY]       = -negV
                 end #ixA0
             end #ixY
         end # ixB0
 
-        # The above gives V_NA(ixt, ixAtilde, ixB1, ixY) which assumes no adjustment of illiquid asset
+        # The above gives V_NA(ixt, ixAtilde, ixB1, ixY) which assumes no adjustment of illiquid asset (where Atilde is a function of B1)
         # Next step: find the optimal deposit d into the illiquid asset
+        # Roughly following Seb Graves here: https://sebgraves.github.io/Resources/TwoStep_TwoAsset.pdf
 
         # STEP 2. Outer problem to find optimal illqiuid assets
         # Will have to interpoate V_NA over Lgrid and Bgrid 
@@ -163,13 +143,6 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
                     function Vtilde_obj(B1::Float64)
                         a_middle_of_period = a_tilde(B1)
 
-                        # if a_middle_of_period < 0
-                        #     println(B1)
-                        #     println(B0)
-                        #     println(a_middle_of_period)
-                        #     error("too low")
-                        # end
-                        
                         try
                             return - V_NA_fcn(a_middle_of_period, B1)
                         catch 
@@ -195,33 +168,6 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
                         error("some issue where ubB1_max < lbB1... why?")
                     end
 
-                    # println( (lbB1, B0, ubB1_max) )
-                    # println( (a_star(lbB1), a_star(B0), a_star(ubB1_max)) )
-                    # println("")
-
-                    # Sometimes the discreteness of the adjustment cost means that a_star(lbB1) < 0
-                    # In that case, don't allow them to withdraw from their retirement account
-                    # if a_tilde(lbB1) < 0
-                    #     lbB1 = B0 
-                    # end
-
-
-                    # if a_star(lbB1) * a_star(ubB1_max) >= 0
-                    #     println("ISSUE")
-                    #     println(lbB1)
-                    #     println( a_star(lbB1) )
-                    #     println(ubB1_max)
-                    #     println( a_star(ubB1_max) )
-
-                    #     B1opts = collect(lbB1:.01:ubB1_max)
-                    #     println( B1opts )
-                    #     println( [a_star(b1) for b1 in B1opts] )
-                    # end
-
-                    # Find B1_overbar using analytical solution 
-                    # Designed to ensure that astar >= astar_min which in turn ensures that A1_NA >= 0 and C_NA > 0 
-                    # B1_overbar = R_a_over_R_b * (A0 - astar_min) + B0 
-
                     # Find ubB1: the max illiquid assets such that a_star >= zero
                     # ubB1 = find_zero(a_star, (lbB1, ubB1_max), Bisection())
                     # ubB1 = min(ubB1_max, B1_overbar)
@@ -229,37 +175,6 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
                     # Note that a_star is decreasing in B1, if above B0, as putting more into retirement means less in liquid
                     # That said, a_star may decrease just below B0 due to the adjustment cost
 
-                    # TODO: might want to have some cap on retirement contributions each period, no? 
-                    # TODO: there is probably a much cleaner way to do this analytically, no?
-
-                    # Maybe better: a_star of zero -> back out B1 -> make that the max -> then see if that's larger than max contribution / max assets
-                    # But wait... why do we need to ensure that a_star is zero? Should we not allow a_star to go negative??
-
-                    # TODO: GOT RID OF THIS, BUT SHOULD LOOK INTO IT
-                    # if a_star(ubB1) + 0.000000001 < minimum(Astargrid)
-                    #     println(ubB1)
-                    #     println(a_star(ubB1))
-                    #     println(astar_min)
-
-                    #     println([A0, B0, Y0])
-                    #     println([ubB1_max, B1_overbar])
-
-                    #     println(Astargrid)
-
-                    #     println("this will be an issue")
-                    #     error("ugh")
-                    # end
-
-                    # if isapprox(ubB1, lbB1)
-                    #     # IF UNABLE TO ADJUST: just set equal to lbB1
-                    #     policyB1[ixt,ixA0,ixB0,ixY]       = lbB1
-                    #     V[ixt, ixA0, ixB0, ixY]           = - V_NA[ixt, ixA0, ixB0, ixY]
-                    #     policyA1[ixt,ixA0,ixB0,ixY]       = policyA1_NA[ixt, ixA0, ixB0, ixY]
-                    #     # Wait.... on the RHS should that be ixB0 = 1??
-                    #     # Also wait... in this case, shouldn't we feed in lbB1 into the interpolated functions?
-                        
-                    #     println("ubB1 = lbB1 weird!!! ")
-                    # else
                     if (ubB1 - lbB1 < minCons)        # issue - look into this!
                         # IF ubB1 is less than lbB1... werid... 
 
@@ -277,24 +192,6 @@ function solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
                     else
                         # IF ABLE TO ADJUST
                         # NOTE: here we always assume interior solution... not sure if that's true
-                        # println([A0, B0, Y0, lbB1, ubB1, a_star(ubB1), maximum(Astargrid), a_star(ubB1) > maximum(Astargrid)])
-                        # println([A0, B0, Y0, lbB1, ubB1 ])
-
-                        # try
-                        #     Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
-                        # catch 
-                        #     println("")
-                        #     println("CATCHING ERROR")
-                        #     println([lbB1, ubB1])
-                        #     b1s = [collect(lbB1:0.1:ubB1); ubB1]
-                        #     a_stars = [a_star(b1) for b1 in b1s]
-                        #     println(b1s)
-                        #     println(a_stars)
-                        #     plot(b1s, a_stars)
-                        #     gui()
-
-                        #     Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
-                        # end
 
                         Res = optimize(Vtilde_obj, lbB1, ubB1, abs_tol = 1e-5)          # println(Res)
                         policyB1[ixt,ixA0,ixB0,ixY]     = Res.minimizer
