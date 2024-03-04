@@ -1,0 +1,47 @@
+* Rouwenhorst
+
+Discretizes a stable AR(1) with process with zero mean. Usage:
+#+BEGIN_SRC julia
+include("rouwenhorst.jl")
+
+npts = 10
+rho = 0.9
+sig = 0.01
+gridpts, transition = rouwenhorst(npts, rho, sig)
+#+END_SRC
+where =rho= is the autocorrelation, =npts= is the number of points in the resulting discretized process, and =sig= is the /error/ standard deviation.
+
+Returns a vector =gridpts= with the support and the Markov matrix =transition=.
+
+* Bonus: equiprobable discretization
+
+The function ~eqprob_discretize~ (see ~finitesupport.jl~) might come in handy when you need a discrete approximation of a variable with continuous support. A picture worth a thousand words:
+
+
+[[./figure/example.png]]
+
+How to generate that:
+
+#+BEGIN_SRC julia :exports code
+include("finitesupport.jl")
+
+using Distributions
+using Plots
+
+
+some_dist = Pareto(1.2, 0.1)
+
+# Apply the magical `eqprob_discretize`, returning a vector-like object
+discrete_version = eqprob_discretize(some_dist, 30);
+
+
+# Now let's compare the CDFs
+domain_cmp = range(0.1, maximum(discrete_version), length=100)
+
+
+plot(x -> cdf(some_dist, x), domain_cmp, lw=2, legend=:bottomright,
+     label="'True'", color=:gray60, title="Pareto distribution")
+
+plot!(discrete_version, cumsum(pmf(discrete_version)),
+      label="Discretized", color = :midnightblue, seriestype = :steppost)
+#+END_SRC
