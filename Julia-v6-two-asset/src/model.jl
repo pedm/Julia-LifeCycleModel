@@ -41,6 +41,7 @@ end
     return value
 end
 
+# Note for later: variable transaction cost goes to the govt as tax revenue, fixed cost goes to pension fund 
 @everywhere function transaction_costs(params, ixt, Tretire, B1, B0)
 
     # Most realistic: Only have a fee if withdrawing:
@@ -48,17 +49,7 @@ end
 
     B1_default = B0 * params["R_b"]
 
-    # Orig version: 
-    # if isapprox(B1_default, B1)
-    #     return 0.0
-    # elseif B1 < B0 # B1_default
-    #     early_withdrawal = abs(B1 - B1_default) # TODO: might not need that abs()
-    #     return params["adj_cost_fixed"] + params["adj_cost_prop"] * early_withdrawal 
-    # else
-    #     return 0.0
-    # end
-
-    if isapprox(B1_default, B1) # | (ixt >= Tretire)
+    if isapprox(B1_default, B1) 
         return 0.0
     elseif B1 < B1_default
         early_withdrawal = abs(B1 - B1_default) # TODO: might not need that abs()

@@ -130,13 +130,6 @@ function getIncomeGrid(model)
     # 4. A vector of maximum incomes in each year
 
     params     = model["params"]
-    # ints       = model["ints"]
-    # T          = ints["T"]
-    # Tretire    = ints["Tretire"]
-    # numPointsY = ints["numPointsY"]
-    # numPointsA = ints["numPointsA"]
-    # numPointsB = ints["numPointsB"]
-    # numSims    = ints["numSims"]
 
     #----------------------------------------#
     # Income draws are log normally distributed
@@ -167,7 +160,7 @@ function getIncomeGrid(model)
     # Add deterministic age trend
     #----------------------------------------#
 
-    # Estimate on PSID using ages 22 - 65 
+    # Estimated on PSID using ages 22 - 65 
     # from PSID i get: logincome = 8.247418 + .1123966 * Age + -.0114392  * (Age^2)/10
     if Tretire == 44
         t         = collect(22:1:22+Tretire - 1 )  # this works when Tretire = 44
@@ -177,7 +170,6 @@ function getIncomeGrid(model)
         t = collect(LinRange(22, 20+44-1 , Tretire )) # get evenly spaced t
         logincome = params["inc_reg_constant"]*ones(size(t)) + params["inc_reg_age"] * t + (params["inc_reg_age2"] * t.^2) + (params["inc_reg_age3"] * t.^3) # + (params["inc_reg_age4"] * t.^4)/1000
     end
-
 
     income = exp.(logincome)
 

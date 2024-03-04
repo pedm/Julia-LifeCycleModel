@@ -15,12 +15,11 @@ function setpar(;beta = 0.95, lambda = 0.0, gamma = 1.5,
                 det_inc = true, rho = 0.96)
 
     # Define the parameters as a dictionary
-    # TODO: create a Dict of various objects (params, objs, etc)
-    # TODO: https://docs.julialang.org/en/v1/manual/performance-tips/
+    # https://docs.julialang.org/en/v1/manual/performance-tips/
     params                     = Dict{String, Float64}()
     params["tol"]              = 1e-5               # max allowed error
     params["minCons"]          = 1e-5                # min allowed consumption
-
+    
     # Returns
     # params["r_b"]              = 1.0/0.98 - 1.0      # Interest rate
     params["r_b"]              = r_b
@@ -79,8 +78,10 @@ function setpar(;beta = 0.95, lambda = 0.0, gamma = 1.5,
     params["R_b"] = 1.0 + params["r_b"]
 
     return params
+end
 
-        # Eirik Version:
+
+    # Eirik Version:
     # function benchpar(;β = 0.98,χ = 0.001,α=1.0,γ=2.0,κ=0.048,d=0.2,
     #     lc=0.0,lb=0.0,ls=0.0,
     #     nx = 41,ns=2,nh=2,ne=1,np=3,nν=3,nϵ=1,
@@ -159,8 +160,6 @@ function setpar(;beta = 0.95, lambda = 0.0, gamma = 1.5,
     #     )
 
 
-end
-
 function setmodel(; args...)
     model                     = Dict{String, Any}()
 
@@ -175,7 +174,7 @@ function setmodel(; args...)
     # ints["numPointsY"]           = 5                   # number of points in the income grid
     # ints["numPointsA"]           = 60                  # number of points in the discretised asset grid -- seems helpful to have more liquid points, since it's used in the intermediate step
     # ints["numPointsB"]           = 50                  # number of points in the discretised asset grid
-    ints["numSims"]              = 1000                # How many individuals to simulate
+    ints["numSims"]              = 10000                # How many individuals to simulate
 
     params = setpar(;args...)
     model["ints"] = ints

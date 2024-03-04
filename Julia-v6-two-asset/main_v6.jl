@@ -22,7 +22,6 @@ include("src/convenience.jl")
 include("src/modelSetup.jl")
 include("src/utils.jl")
 include("src/model.jl")
-include("src/modelEulerEquation.jl")
 include("src/solveValueFunctionPar.jl") # parallel version
 include("src/simulation.jl")
 include("src/rouwenhorst/rouwenhorst.jl")
@@ -93,10 +92,8 @@ Agrid, Bgrid = getAssetGrid(model)
 
 println("Solve Value Function: Parallel")
 @time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
-# @time policyA1, policyB1, policyC, V, EV, V_NA  = solveValueFunctionPar(model, Agrid, Bgrid, Ygrid, incTransitionMrx)
 
 @time cpath, apath, bpath, vpath, ypath, ewpath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
-# @time cpath, apath, bpath, vpath, ypath, ewpath = simWithUncer(model, Agrid, Bgrid, Ygrid, policyA1, policyB1, EV)
 
 ################################################################################
 # LATER: Tests
@@ -263,6 +260,8 @@ pct_change_y = (ypath[2:Tretire-1, :] - ypath[1:Tretire-2, :]) ./ ypath[1:Tretir
 mean(pct_change_y .< -0.2)
 
 
+# DataFrames Tutorial: https://github.com/bkamins/Julia-DataFrames-Tutorial/tree/master
+# Tidier: 
 
 using DataFrames 
 using ShiftedArrays
@@ -285,23 +284,36 @@ lag!(df,:y) # Create lag of income
 df[!, :d_y] = df[!, :y]- df[!, :L1y]
 df[!, :pct_change_y] = df[!, :d_y] ./ df[!, :L1y]
 
-df
-
-df[!, :event] = df[!, :pct_change_y] .< -0.2
-
-df
-
-mean(df[!, :event])
-
-# DataFrames Tutorial: https://github.com/bkamins/Julia-DataFrames-Tutorial/tree/master
-# Tidier: 
-
 # Create event time: time to/from first fall in income of 20% or more
+df[!, :event]      = df[!, :pct_change_y] .< -0.2
 df[!, :event_flag] = 1(df[!, :event])
+df[ismissing.(df.event_flag), :event_flag] .= 0
+
+
+# # Select the first event_flag by id
+# df2 = transform(groupby(df, :id)) do group
+#     group.event_flag  = coalesce.(group.event_flag, 0) # Replace missing values with 0
+#     group.first_event = ones(size(group.event_flag)) * findfirst(==(1), group.event_flag)
+#     group.event_time  = group.t - Int64.(group.first_event)
+#     return group
+# end
+
+# Ensure that they are not too close to retirement
+df2 = filter(row -> 5 <= row.t <= Tretire - 10, df2)
+
+# Modify the code to randomly select one occurrence of event_flag == 1 for each id
 df2 = transform(groupby(df, :id)) do group
-    group.event_flag  = coalesce.(group.event_flag, 0)                                     # Replace missing values with 0
-    group.first_event = ones(size(group.event_flag)) * findfirst(==(1), group.event_flag)
-    group.event_time  = group.t - Int64.(group.first_event)
+    # Find indices where event_flag == 1 
+    # Also ensure at least 5 years away from retirement
+    event_indices = findall((group.event_flag .== 1) )
+
+    # Randomly select one index
+    random_index = rand(1:length(event_indices))
+
+    # Get the time of the randomly selected event
+    event_time = group.t[event_indices[random_index]]
+    # Calculate event_time relative to the randomly selected event
+    group.event_time = group.t .- event_time
     return group
 end
 
@@ -310,9 +322,9 @@ end
 filtered_df = filter(row -> -5 <= row.event_time <= 5, df2)
 
 # Make a balanced panel: only keep the ids that have all observations for time -5 to 5
-grouped_df = groupby(filtered_df, :id) # Group the filtered DataFrame by the id column
+grouped_df = groupby(filtered_df, :id)                                            # Group the filtered DataFrame by the id column
 filtered_groups = filter(grp -> length(unique(grp.event_time)) == 11, grouped_df) # Filter groups to keep only those with observations for time periods -5 to 5
-final_df = vcat(filtered_groups...) # Combine the filtered groups back into a DataFrame
+final_df = vcat(filtered_groups...)                                               # Combine the filtered groups back into a DataFrame
 
 
 # Collapse by time and compute the mean of variable x
@@ -324,7 +336,9 @@ end
 # Create plots:
 # plot(collapsed_df.event_time, collapsed_df.age)
 
+plot(collapsed_df.event_time, collapsed_df.age)
 plot(collapsed_df.event_time, collapsed_df.y)
+
 p1 = plot(collapsed_df.event_time, collapsed_df.pct_change_y, title = "Change Income")
 p2 = plot(collapsed_df.event_time, collapsed_df.c, title = "Consumption")
 
@@ -334,30 +348,42 @@ p4 = plot(collapsed_df.event_time, collapsed_df.b, title = "Retirement Assets")
 p5 = plot(collapsed_df.event_time, collapsed_df.y .- collapsed_df.c, title = "Saving Rate (Y-C)", xlabel = "Event Time (Neg Shock at 0)")
 p6 = plot(collapsed_df.event_time, collapsed_df.early_w, title = "Early Withdrawal Probability", xlabel = "Event Time (Neg Shock at 0)")
 
-p4 = plot(collapsed_df.event_time, collapsed_df.a ./ collapsed_df.y, title = "Fin Assets / Y")
+# p4 = plot(collapsed_df.event_time, collapsed_df.a ./ collapsed_df.y, title = "Fin Assets / Y")
 
 
 l = @layout [a b; c d; e f]
-plot(p1, p2, p3, p4, p5, p6, layout = l, size = (800, 800), legend = false)
+plot(p1, p2, p3, p4, p5, p6, layout = l, size = (900, 800), legend = false)
+
 
 #############################################################################################
 # Now create event study with heterogeneity by liq assets / income ratio at time t=-1
 
-filtered_df = filter(row -> row.event_time == -1, final_df)
-filtered_df.a_over_y = filtered_df.a ./ filtered_df.y
-q = quantile(filtered_df.a, [0.25, 0.5, 0.75])
+filtered_df = filter(row -> row.event_time == -1, final_df) # Find all obs at t = -1
+filtered_df.a_over_y = filtered_df.a ./ filtered_df.y # Compute assets over income
+
+# Step 1a: Assign to quartiles - unconditional on age
+# q = quantile(filtered_df.a_over_y, [0.25, 0.5, 0.75])
+# filtered_df[!, :quartile_dummy] .= ifelse.(filtered_df.event_time .== -1,
+#                                         ifelse.(filtered_df.a_over_y .<= q[1], 1,
+#                                         ifelse.(filtered_df.a_over_y .<= q[2], 2,
+#                                         ifelse.(filtered_df.a_over_y .<= q[3], 3, 4))),
+#                                         missing)
 
 
+# Step 1b: Assign to quartiles - conditional on age
+quartiles_by_age = combine(groupby(filtered_df, :t)) do group
+    q = quantile(group.a_over_y, [0.25, 0.5, 0.75])
+    DataFrame(t = group.t[1], Q1 = q[1], Q2 = q[2], Q3 = q[3])
+end
+filtered_df = leftjoin(filtered_df, quartiles_by_age, on = :t)
 filtered_df[!, :quartile_dummy] .= ifelse.(filtered_df.event_time .== -1,
-                                        ifelse.(filtered_df.a .<= q[1], 1,
-                                        ifelse.(filtered_df.a .<= q[2], 2,
-                                        ifelse.(filtered_df.a .<= q[3], 3, 4))),
+                                        ifelse.(filtered_df.a_over_y .<= filtered_df.Q1, 1,
+                                        ifelse.(filtered_df.a_over_y .<= filtered_df.Q2, 2,
+                                        ifelse.(filtered_df.a_over_y .<= filtered_df.Q3, 3, 4))),
                                         missing)
 
-# Now just select the columns I want
+# Step 2: Now just select the columns I want
 quartiles_by_id = select(filtered_df, [:id, :quartile_dummy])
-
-
 
 # Step 3: Merge quartiles back to the original DataFrame based on the id
 merged_df = leftjoin(final_df, quartiles_by_id, on = :id)
@@ -382,7 +408,6 @@ time_array = [collapsed_df[(collapsed_df.quartile_dummy .== q) .& (collapsed_df.
 
 get_array(var) = [collapsed_df[(collapsed_df.quartile_dummy .== q) .& (collapsed_df.event_time .== t), :][!, var][1] for t in times, q in quart]
 
-plot(time_array, get_array(:age), title = "Age", label = ["Q1" "Q2" "Q3" "Q4"])
 
 p1 = plot(time_array, get_array(:pct_change_y), title = "Change Income")
 p2 = plot(time_array, get_array(:c), title = "Consumption")
@@ -391,5 +416,35 @@ p4 = plot(time_array, get_array(:b), title = "Retirement Assets")
 p5 = plot(time_array, get_array(:y) .- get_array(:c), title = "Saving Rate (Y-C)", xlabel = "Event Time (Neg Shock at 0)")
 p6 = plot(time_array, get_array(:early_w), title = "Early Withdrawal Probability", xlabel = "Event Time (Neg Shock at 0)")
 
+p7 = plot(time_array, get_array(:age), title = "Age", label = ["Q1" "Q2" "Q3" "Q4"])
+p8 = plot(time_array, get_array(:y),   title = "Income", label = ["Q1" "Q2" "Q3" "Q4"])
+
+
+l = @layout [a b; c d; e f; g h]
+plot(p1, p2, p3, p4, p7, p8, p5, p6, layout = l, size = (800, 900), label = ["Q1" "Q2" "Q3" "Q4"])
+
 l = @layout [a b; c d; e f]
 plot(p1, p2, p3, p4, p5, p6, layout = l, size = (800, 900), label = ["Q1" "Q2" "Q3" "Q4"])
+
+
+################################################################################################################
+
+## Normalize to event time t = -1 
+# Filter to find the value of variable x at time t = -1 within each quartile
+x_at_t_minus_1 = combine(groupby(collapsed_df[collapsed_df.event_time .== -1, :], :quartile_dummy)) do group
+    DataFrame(quartile_dummy = group.quartile_dummy[1], c_at_t_minus_1 = group.c)
+end
+
+# Merge x_at_t_minus_1 back to the original DataFrame based on the quartile
+merged_df = leftjoin(collapsed_df, x_at_t_minus_1, on = :quartile_dummy)
+
+# Normalize variable x based on its value at time t = -1 within each quartile
+merged_df[!, :normalized_c] = (merged_df.c .- merged_df.c_at_t_minus_1) ./ merged_df.c_at_t_minus_1
+
+# Display the updated DataFrame
+show(merged_df)
+
+
+get_array_normalized(var) = [merged_df[(merged_df.quartile_dummy .== q) .& (merged_df.event_time .== t), :][!, var][1] for t in times, q in quart]
+
+p2 = plot(time_array, get_array_normalized(:normalized_c), title = "Normalized Consumption", label = ["Q1" "Q2" "Q3" "Q4"])
